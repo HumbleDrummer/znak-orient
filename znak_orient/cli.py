@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from .engine import OrientationError, orient
+from .strict_json import StrictJsonError, strict_json_loads
 
 
 def _atomic_write_json(path: Path, value: object) -> None:
@@ -59,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "verify-demo":
-            package = json.loads(args.input.read_text(encoding="utf-8"))
+            package = strict_json_loads(args.input.read_text(encoding="utf-8"))
             result = orient(package)
             _atomic_write_json(args.output, result)
             receipt = result["run_receipt"]
@@ -70,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
 
             serve(args.host, args.port, args.demo, allow_non_loopback=args.allow_non_loopback)
             return 0
-    except (OSError, json.JSONDecodeError, OrientationError) as exc:
+    except (OSError, StrictJsonError, OrientationError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 2

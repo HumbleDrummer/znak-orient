@@ -11,7 +11,7 @@ Image generation was not used because the authorized PIN blocks paid or real API
 
 ## Verification methods
 
-The Codex in-app browser loaded the real loopback application, returned a complete accessibility snapshot, executed **Re-run orientation**, changed the intake filter to **Rejected** (8 → 5 visible items), activated **Copy Recovery Card**, and reported no warning/error console entries. Its viewport override did not change the reported CSS viewport, so local Chromium headless with all non-loopback resolution blocked was used for exact 1440×900 and 390×844 responsive screenshots, a 35.12-second workflow recording, and the retained `browser-qa.json` receipt.
+The Codex in-app browser loaded the real loopback application, returned a complete accessibility snapshot, executed **Re-run orientation**, changed the intake filter to **Rejected** (8 → 5 visible items), activated **Copy Recovery Card**, and reported no warning/error console entries. Its viewport override did not change the reported CSS viewport, so local Chromium headless with all non-loopback resolution blocked was used for exact 1440×900 and 390×844 responsive screenshots, a 34.92-second workflow recording, and the retained `browser-qa.json` receipt.
 
 ## Comparison points
 
@@ -50,6 +50,6 @@ The in-app browser's clipboard API returned an empty read after the page reporte
 
 | Artifact | Dimensions | SHA-256 |
 | --- | --- | --- |
-| `design-concept-1440x900.png` | 1440×900 | `23d2ea07788e340cfe89955160bd47e8d91b4d873edaaf943593de9f235aea4e` |
-| `ui-desktop-1440x900.png` | 1440×900 | `13f785f882ea09a3fba461250a3af4a7e5101753d63b2236f6e51564fec75ff2` |
-| `ui-mobile-390x844.png` | 390×844 | `5159508de1199e9febf0b661128c1924eae8eda2a258fcb2de65cfba400fd162` |
+| `design-concept-1440x900.png` | 1440×900 | `733ddacd9510a5dad99ad47377f6f303e9826f9ca27e6cb65c4a6b0a1ad73f92` |
+| `ui-desktop-1440x900.png` | 1440×900 | `e68ed57cc633ae80f18bcdb4cf0da3e804463cec0b6e928b2e35abc170bfc59d` |
+| `ui-mobile-390x844.png` | 390×844 | `a046e1f0218fecdee0b767e6136350baf295d1fcfad9c01b4b1897f0219ef573` |

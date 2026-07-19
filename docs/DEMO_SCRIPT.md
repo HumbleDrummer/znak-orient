@@ -1,6 +1,6 @@
 # Narrated demo script — 2 minutes 35 seconds
 
-Recording status: the retained local `artifacts/znak-orient-demo.webm` is a 35.12-second silent interaction/evidence capture of the same workflow. This longer script is the proposed narration for a future published submission video; no public upload is claimed.
+Recording status: the retained local `artifacts/znak-orient-demo.webm` is a 34.92-second silent interaction/evidence capture of the same workflow. This longer script is the proposed narration for a future published submission video; no public upload is claimed.
 
 ## 00:00–00:20 — Problem
 

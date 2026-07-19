@@ -47,6 +47,18 @@ def require_text(value: Any, code: str, name: str) -> str:
     return normalize_text(value)
 
 
+def require_closed_keys(
+    value: dict[str, Any],
+    required: set[str],
+    allowed: set[str],
+    code: str,
+    name: str,
+) -> None:
+    keys = set(value)
+    require(required.issubset(keys), code, f"{name} is missing required fields")
+    require(keys.issubset(allowed), code, f"{name} contains unsupported fields")
+
+
 def parse_instant(value: Any, code: str, name: str) -> datetime:
     text = require_text(value, code, name)
     try:
@@ -59,18 +71,28 @@ def parse_instant(value: Any, code: str, name: str) -> datetime:
 
 def validate_source(source: Any) -> dict[str, Any]:
     item = require_mapping(source, "SRC-001", "source")
+    source_fields = {"source_id", "kind", "locator", "captured_at", "authority", "excerpt"}
+    require_closed_keys(
+        item,
+        source_fields - {"excerpt"},
+        source_fields,
+        "SRC-001",
+        "source",
+    )
     source_id = require_text(item.get("source_id"), "SRC-002", "source_id")
     authority = require_text(item.get("authority"), "SRC-003", "source.authority")
     require(authority in AUTHORITIES, "SRC-003", f"unsupported source authority {authority!r}")
     captured_at = require_text(item.get("captured_at"), "SRC-004", "source.captured_at")
     parse_instant(captured_at, "SRC-004", "source.captured_at")
+    excerpt = item.get("excerpt", "")
+    require(isinstance(excerpt, str), "SRC-007", "source.excerpt must be text")
     normalized = {
         "source_id": source_id,
         "kind": require_text(item.get("kind"), "SRC-005", "source.kind"),
         "locator": require_text(item.get("locator"), "SRC-006", "source.locator"),
         "captured_at": captured_at,
         "authority": authority,
-        "excerpt": normalize_text(item.get("excerpt", "")) if isinstance(item.get("excerpt", ""), str) else "",
+        "excerpt": normalize_text(excerpt),
     }
     normalized["content_sha256"] = sha256_hex(normalized)
     return normalized
@@ -78,6 +100,25 @@ def validate_source(source: Any) -> dict[str, Any]:
 
 def validate_receipt(receipt: Any) -> dict[str, Any]:
     item = require_mapping(receipt, "RCP-001", "validation receipt")
+    receipt_fields = {
+        "receipt_id",
+        "validator_id",
+        "subject",
+        "status",
+        "checked_at",
+        "material",
+        "summary",
+        "source_ids",
+        "checks",
+        "assertion_sha256",
+    }
+    require_closed_keys(
+        item,
+        receipt_fields - {"assertion_sha256"},
+        receipt_fields,
+        "RCP-001",
+        "validation receipt",
+    )
     status = require_text(item.get("status"), "RCP-002", "receipt.status")
     require(status in RECEIPT_STATUSES, "RCP-002", f"unsupported receipt status {status!r}")
     checked_at = require_text(item.get("checked_at"), "RCP-003", "receipt.checked_at")
@@ -90,6 +131,7 @@ def validate_receipt(receipt: Any) -> dict[str, Any]:
     check_ids: set[str] = set()
     for raw_check in raw_checks:
         check = require_mapping(raw_check, "RCP-009", "receipt.check")
+        require_closed_keys(check, {"id", "status"}, {"id", "status"}, "RCP-009", "receipt.check")
         check_id = require_text(check.get("id"), "RCP-009", "receipt.check.id")
         check_status = require_text(check.get("status"), "RCP-009", "receipt.check.status")
         require(check_status in RECEIPT_STATUSES, "RCP-009", "receipt check has unsupported status")
@@ -99,6 +141,8 @@ def validate_receipt(receipt: Any) -> dict[str, Any]:
     require(status != "PASS" or all(check["status"] == "PASS" for check in checks), "RCP-010", "PASS receipt contains a non-PASS check")
     require(status != "FAIL" or any(check["status"] == "FAIL" for check in checks), "RCP-010", "FAIL receipt has no failed check")
     require(status != "UNKNOWN" or any(check["status"] == "UNKNOWN" for check in checks), "RCP-010", "UNKNOWN receipt has no unknown check")
+    material = item.get("material")
+    require(isinstance(material, bool), "RCP-012", "receipt.material must be a JSON boolean")
     assertion_sha256 = require_text(item.get("assertion_sha256"), "RCP-011", "receipt.assertion_sha256") if item.get("assertion_sha256") is not None else ""
     require(
         not assertion_sha256 or (len(assertion_sha256) == 64 and all(character in "0123456789abcdef" for character in assertion_sha256)),
@@ -112,7 +156,7 @@ def validate_receipt(receipt: Any) -> dict[str, Any]:
         "subject": require_text(item.get("subject"), "RCP-006", "receipt.subject"),
         "status": status,
         "checked_at": checked_at,
-        "material": bool(item.get("material", False)),
+        "material": material,
         "summary": require_text(item.get("summary"), "RCP-007", "receipt.summary"),
         "source_ids": sorted(set(source_ids)),
         "checks": checks,
@@ -124,6 +168,34 @@ def normalize_change(change: Any) -> dict[str, Any]:
     item = require_mapping(change, "CHG-001", "change")
     object_type = require_text(item.get("object_type"), "CHG-002", "change.object_type")
     require(object_type in OBJECT_TYPES, "CHG-002", f"unsupported object type {object_type!r}")
+    common_fields = {"change_id", "object_type", "sequence", "observed_at", "source_ids"}
+    if object_type == "STATE_CHANGE":
+        state_fields = common_fields | {
+            "content_type",
+            "operation",
+            "subject",
+            "value",
+            "epistemic",
+            "authority",
+            "material",
+            "expected_checkpoint_id",
+            "validation_receipt_id",
+            "supersedes",
+            "resolves_conflict_id",
+        }
+        require_closed_keys(
+            item,
+            common_fields | {"content_type", "operation", "subject", "value", "epistemic", "authority", "material"},
+            state_fields,
+            "CHG-001",
+            "STATE_CHANGE",
+        )
+    elif object_type == "TRACE":
+        trace_fields = common_fields | {"text"}
+        require_closed_keys(item, trace_fields, trace_fields, "CHG-001", "TRACE")
+    else:
+        card_fields = common_fields | {"value"}
+        require_closed_keys(item, card_fields, card_fields, "CHG-001", "RECOVERY_CARD")
     sequence = item.get("sequence")
     require(isinstance(sequence, int) and not isinstance(sequence, bool) and sequence > 0, "CHG-003", "change.sequence must be a positive integer")
     observed_at = require_text(item.get("observed_at"), "CHG-004", "change.observed_at")
@@ -135,7 +207,7 @@ def normalize_change(change: Any) -> dict[str, Any]:
         "sequence": sequence,
         "observed_at": observed_at,
         "source_ids": sorted(set(source_ids)),
-        "text": normalize_text(item.get("text", "")) if isinstance(item.get("text", ""), str) else "",
+        "text": "",
     }
     if object_type == "STATE_CHANGE":
         content_type = require_text(item.get("content_type"), "CHG-007", "change.content_type")
@@ -146,6 +218,19 @@ def normalize_change(change: Any) -> dict[str, Any]:
         require(operation in OPERATIONS, "CHG-008", f"unsupported operation {operation!r}")
         require(epistemic in EPISTEMIC_STATES, "CHG-009", f"unsupported epistemic state {epistemic!r}")
         require(authority in AUTHORITIES, "CHG-010", f"unsupported authority {authority!r}")
+        material = item.get("material")
+        require(isinstance(material, bool), "CHG-012", "change.material must be a JSON boolean")
+        for optional_field in (
+            "expected_checkpoint_id",
+            "validation_receipt_id",
+            "supersedes",
+            "resolves_conflict_id",
+        ):
+            require(
+                optional_field not in item or isinstance(item[optional_field], str),
+                "CHG-013",
+                f"change.{optional_field} must be text when present",
+            )
         normalized.update(
             {
                 "content_type": content_type,
@@ -154,13 +239,15 @@ def normalize_change(change: Any) -> dict[str, Any]:
                 "value": normalize_value(item.get("value")),
                 "epistemic": epistemic,
                 "authority": authority,
-                "material": bool(item.get("material", False)),
+                "material": material,
                 "expected_checkpoint_id": normalize_text(item.get("expected_checkpoint_id", "")) if isinstance(item.get("expected_checkpoint_id", ""), str) else "",
                 "validation_receipt_id": normalize_text(item.get("validation_receipt_id", "")) if isinstance(item.get("validation_receipt_id", ""), str) else "",
                 "supersedes": normalize_text(item.get("supersedes", "")) if isinstance(item.get("supersedes", ""), str) else "",
                 "resolves_conflict_id": normalize_text(item.get("resolves_conflict_id", "")) if isinstance(item.get("resolves_conflict_id", ""), str) else "",
             }
         )
+    elif object_type == "TRACE":
+        normalized["text"] = normalize_text(require_text(item.get("text"), "CHG-014", "change.text"))
     elif object_type == "RECOVERY_CARD":
         normalized["value"] = normalize_value(item.get("value", {}))
     return normalized

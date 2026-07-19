@@ -77,8 +77,9 @@ function renderCurrent(result) {
 
 function renderBlockers(result) {
   const conflicts = result.checkpoint.conflicts.filter((item) => item.status === "DISPUTED");
+  const materialConflicts = conflicts.filter((item) => item.material);
   const unknowns = result.checkpoint.unknowns.filter((item) => item.critical);
-  setText("blocker-count", `${conflicts.length + unknowns.length} blockers`);
+  setText("blocker-count", `${materialConflicts.length + unknowns.length} blockers`);
   const conflictList = byId("conflict-list");
   const unknownList = byId("unknown-list");
   conflictList.replaceChildren();

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 import unittest
 from http.client import HTTPConnection
@@ -77,6 +78,39 @@ class ServerTests(unittest.TestCase):
         with urlopen(request, timeout=2) as response:
             result = json.loads(response.read().decode("utf-8"))
         self.assertEqual("judge-safe-orientation-demo-001", result["package_id"])
+
+    def test_post_rejects_duplicate_json_keys_before_orientation(self):
+        status, payload = self.raw_request(
+            "POST",
+            "/api/orient",
+            headers={"Content-Type": "application/json"},
+            body=b'{"schema_version":"0.3C","schema_version":"OVERRIDE"}',
+        )
+        self.assertEqual(400, status)
+        error = json.loads(payload)
+        self.assertEqual("PACKAGE_REJECTED", error["error"])
+        self.assertIn("duplicate JSON object key", error["detail"])
+
+    def test_demo_get_rejects_duplicate_json_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ambiguous_demo = Path(directory) / "ambiguous.json"
+            ambiguous_demo.write_text(
+                '{"schema_version":"0.3C","schema_version":"OVERRIDE"}',
+                encoding="utf-8",
+            )
+            server = build_server("127.0.0.1", 0, ambiguous_demo)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                status, payload = self.raw_request("GET", "/api/demo", server=server)
+                self.assertEqual(500, status)
+                error = json.loads(payload)
+                self.assertEqual("DEMO_PROCESSING_FAILED", error["error"])
+                self.assertIn("duplicate JSON object key", error["detail"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
 
     def test_wrong_media_type_and_unknown_path_fail_closed(self):
         request = Request(self.base_url + "/api/orient", data=b"{}", method="POST")

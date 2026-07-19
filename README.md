@@ -8,7 +8,7 @@ Current scope: `IMPLEMENTED_AND_LOCALLY_EXECUTED` competition MVP. This is not a
 
 ## Why it exists
 
-Project notes often preserve volume but lose direction. A newer claim can be unsupported, an authorized decision can conflict with another authorized decision, a failed receipt can leave a critical cause unknown, and imported text can contain instructions that must remain inert. ZNAK ORIENT compresses that material into minimum sufficient memory without silently overwriting history.
+Project notes often preserve volume but lose direction. A newer claim can be unsupported, an authorized decision can conflict with another authorized decision, a failed receipt can leave a critical cause unknown, and imported text can contain instructions that must remain inert. ZNAK ORIENT builds a compact orientation checkpoint without silently overwriting history. The tested fixture verifies recovery equivalence after pre-checkpoint history is removed; it does not claim global minimality or superiority over raw notes.
 
 ## What the demo proves
 
@@ -52,12 +52,12 @@ Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Use **Re-run orientation** 
 Expected command markers:
 
 ```text
-Ran 59 tests ... OK
+Ran 104 tests ... OK
 ORIENTATION_PASS checkpoint=<deterministic-id> output=artifacts\demo-result.json
 ZNAK_ORIENT_LOCAL http://127.0.0.1:8765
 ```
 
-The retained repository validation evidence is documented in `docs/VALIDATION_2026-07-19.md`. The local browser-workflow receipt is `artifacts/browser-qa.json`; the 35.12-second unpublished capture is `artifacts/znak-orient-demo.webm`.
+The retained repository validation evidence is documented in `docs/VALIDATION_2026-07-19.md`. The local browser-workflow receipt is `artifacts/browser-qa.json`; the 34.92-second unpublished capture is `artifacts/znak-orient-demo.webm`.
 
 ## Commands
 
@@ -83,6 +83,7 @@ Non-loopback binding fails closed unless the operator adds `--allow-non-loopback
 demo/evidence-package.json       synthetic judge-safe package
 znak_orient/canonical.py         Unicode normalization, canonical JSON, SHA-256 sealing
 znak_orient/contracts.py         closed vocabularies and strict package validation
+znak_orient/strict_json.py       duplicate-key-rejecting JSON boundary
 znak_orient/engine.py            policy gates, reducer, conflict/unknown logic, checkpoint and card
 znak_orient/cli.py               atomic CLI artifact write and local commands
 znak_orient/server.py            loopback HTTP/API surface with security headers and size limits
@@ -98,7 +99,11 @@ docs/                            architecture, demo, submission, access, audits,
 - A trusted-validator ID is a local policy simulation, not a cryptographic attestation.
 - SHA-256 binds canonicalized checkpoint/source content inside the package; it does not preserve raw-input byte identity or prove truth in the outside world.
 - Deduplication covers structured equality after Unicode and whitespace normalization; it does not claim semantic paraphrase detection.
-- Corrupt-checkpoint recovery means fallback to an older valid checkpoint and tail replay; it does not claim recovery from a corrupt disk or database.
+- JSON parsing rejects exact duplicate keys, unsupported fields, and non-boolean materiality instead of silently coercing them.
+- Sources and receipts must exist before the changes/checkpoint members they support; a later record cannot be used as earlier evidence.
+- Every checkpoint retains immutable receipt ID/hash pointers. Reusing an ID with changed meaning, deleting the ledger, or rolling back past a newer unverifiable receipt lineage fails closed.
+- Success conditions remain false while the same subject or validation lineage is disputed.
+- Corrupt-checkpoint recovery means fallback to an older valid checkpoint and causally safe tail replay; it stops when a newer invalid checkpoint makes receipt lineage unknowable. It does not claim recovery from a corrupt disk or database.
 - The HTTP server processes uploads in memory and does not persist them. The CLI writes only the explicit output path.
 - Imported strings are rendered with `textContent`, never executed as prompts, code, SQL, HTML, paths, or commands.
 

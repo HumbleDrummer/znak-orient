@@ -5,7 +5,7 @@ import json
 import unittest
 from pathlib import Path
 
-from znak_orient.canonical import canonical_json_bytes, seal_checkpoint, verify_checkpoint_integrity
+from znak_orient.canonical import canonical_json_bytes, seal_checkpoint, sha256_hex, verify_checkpoint_integrity
 from znak_orient.contracts import validate_source
 from znak_orient.engine import OrientationError, evaluate_success_condition, orient
 
@@ -139,7 +139,10 @@ class DemoOrientationTests(unittest.TestCase):
 
     def test_exactly_one_next_step_with_machine_condition(self):
         next_step = self.result["checkpoint"]["primary_next_step"]
-        self.assertEqual({"type", "subject", "required_authority"}, set(next_step["success_condition"]))
+        self.assertEqual(
+            {"type", "subject", "content_type", "required_authority"},
+            set(next_step["success_condition"]),
+        )
         self.assertFalse(evaluate_success_condition(self.result, next_step["success_condition"]))
 
 
@@ -183,8 +186,16 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         self.assertEqual(4, len(covered))
 
     def test_noise_only_does_not_create_a_checkpoint(self):
+        baseline_package = demo_package()
+        baseline_package["validation_receipts"] = [
+            receipt_by_id(baseline_package, "vr-core-001")
+        ]
+        baseline_package["changes"] = []
+        baseline = orient(baseline_package)["checkpoint"]
+
         package = demo_package()
         package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["checkpoints"] = {"primary": baseline, "fallbacks": []}
         package["changes"] = [
             {
                 "change_id": "trace-only",
@@ -196,7 +207,7 @@ class RecoveryAndPolicyTests(unittest.TestCase):
             }
         ]
         result = orient(package)
-        self.assertEqual("cp-old-valid-001", result["checkpoint"]["checkpoint_id"])
+        self.assertEqual(baseline["checkpoint_id"], result["checkpoint"]["checkpoint_id"])
         self.assertEqual(4, result["checkpoint"]["last_sequence"])
         self.assertEqual("TRACE_EXPIRED_NO_MEANINGFUL_CHANGE", result["intake"][0]["reason"])
 
@@ -292,10 +303,258 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         self.assertEqual("UNKNOWN", result["checkpoint"]["voltage"])
         self.assertTrue(any(item["unknown_id"] == "unknown:validation:project.completion" for item in result["checkpoint"]["unknowns"]))
 
-    def test_trusted_pass_resolves_prior_validation_unknown(self):
+    def test_authorized_resolution_selects_pass_over_prior_validation_fail(self):
         initial_package = demo_package()
-        receipt_by_id(initial_package)["status"] = "UNKNOWN"
-        receipt_by_id(initial_package)["checks"][0]["status"] = "UNKNOWN"
+        receipt_by_id(initial_package)["status"] = "FAIL"
+        receipt_by_id(initial_package)["checks"][0]["status"] = "FAIL"
+        initial_package["changes"] = []
+        initial = orient(initial_package)
+        condition = initial["checkpoint"]["primary_next_step"]["success_condition"]
+
+        follow_up = demo_package()
+        follow_up["as_of"] = "2026-07-19T08:40:00+02:00"
+        follow_up["checkpoints"] = {"primary": initial["checkpoint"], "fallbacks": []}
+        receipt_by_id(follow_up)["status"] = "FAIL"
+        receipt_by_id(follow_up)["checks"][0]["status"] = "FAIL"
+        assertion_sha256 = receipt_by_id(follow_up)["assertion_sha256"]
+        selected_claim = {
+            "status": "PASS",
+            "summary": "Clean checkout passed.",
+            "assertion_sha256": assertion_sha256,
+        }
+        pass_condition = {
+            "type": "validation_pass",
+            "status": "PASS",
+            "subject": "project.completion",
+            "checked_after": "2026-07-19T08:00:00+02:00",
+            "assertion_sha256": assertion_sha256,
+        }
+        follow_up["validation_receipts"].extend(
+            [
+                {
+                    "receipt_id": "vr-clean-pass-followup",
+                    "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                    "subject": "project.completion",
+                    "status": "PASS",
+                    "checked_at": "2026-07-19T08:35:00+02:00",
+                    "material": True,
+                    "summary": "Clean checkout passed.",
+                    "assertion_sha256": assertion_sha256,
+                    "source_ids": ["src-clean-validation"],
+                    "checks": [{"id": "clean-checkout", "status": "PASS"}],
+                },
+                {
+                    "receipt_id": "vr-validation-resolution",
+                    "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                    "subject": "validation.project.completion",
+                    "status": "PASS",
+                    "checked_at": "2026-07-19T08:36:00+02:00",
+                    "material": False,
+                    "summary": "Receipt conflict resolution was value-bound and retained.",
+                    "assertion_sha256": sha256_hex(
+                        {"subject": "validation.project.completion", "value": selected_claim}
+                    ),
+                    "source_ids": ["src-clean-validation"],
+                    "checks": [{"id": "resolution-value-bound", "status": "PASS"}],
+                },
+            ]
+        )
+        follow_up["changes"] = [
+            {
+                "change_id": "chg-resolve-validation-receipts",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:37:00+02:00",
+                "content_type": "FACT",
+                "operation": "RESOLVE",
+                "subject": "validation.project.completion",
+                "value": selected_claim,
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": initial["checkpoint"]["checkpoint_id"],
+                "validation_receipt_id": "vr-validation-resolution",
+                "resolves_conflict_id": "conflict:fact:validation.project.completion",
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+        resolved = orient(follow_up)
+        self.assertEqual([], [item for item in resolved["checkpoint"]["unknowns"] if item["subject"] == "project.completion"])
+        self.assertEqual("FLOWING", resolved["checkpoint"]["voltage"])
+        self.assertEqual("Clean checkout passed.", resolved["checkpoint"]["city_position"])
+        self.assertTrue(evaluate_success_condition(resolved, condition))
+        self.assertTrue(evaluate_success_condition(resolved, pass_condition))
+        receipt_conflict = next(
+            item
+            for item in resolved["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.completion"
+        )
+        self.assertEqual("RESOLVED", receipt_conflict["status"])
+        self.assertEqual(
+            {"vr-clean-007", "vr-clean-pass-followup"},
+            {claim["claim_id"] for claim in receipt_conflict["claims"]},
+        )
+
+        contested_proof = copy.deepcopy(follow_up)
+        contested_proof["validation_receipts"].append(
+            {
+                "receipt_id": "vr-validation-resolution-fail",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "validation.project.completion",
+                "status": "FAIL",
+                "checked_at": "2026-07-19T08:36:30+02:00",
+                "material": True,
+                "summary": "Receipt conflict resolution proof failed.",
+                "assertion_sha256": sha256_hex(
+                    {"subject": "validation.project.completion", "value": selected_claim}
+                ),
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "resolution-value-bound", "status": "FAIL"}],
+            }
+        )
+        contested_result = orient(contested_proof)
+        contested_intake = intake_by_id(contested_result)
+        self.assertEqual("REJECTED", contested_intake["chg-resolve-validation-receipts"]["status"])
+        self.assertEqual(
+            "RECEIPT_CONFLICT_BLOCKS_FACT",
+            contested_intake["chg-resolve-validation-receipts"]["reason"],
+        )
+
+        resolved_proof_to_fail = copy.deepcopy(contested_proof)
+        proof_fail_claim = {
+            "status": "FAIL",
+            "summary": "Receipt conflict resolution proof failed.",
+            "assertion_sha256": sha256_hex(
+                {"subject": "validation.project.completion", "value": selected_claim}
+            ),
+        }
+        resolved_proof_to_fail["validation_receipts"].append(
+            {
+                "receipt_id": "vr-proof-resolution-authority",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "validation.validation.project.completion",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:36:35+02:00",
+                "material": False,
+                "summary": "The proof-receipt dispute was resolved to the retained FAIL claim.",
+                "assertion_sha256": sha256_hex(
+                    {
+                        "subject": "validation.validation.project.completion",
+                        "value": proof_fail_claim,
+                    }
+                ),
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "proof-resolution-value-bound", "status": "PASS"}],
+            }
+        )
+        resolved_proof_to_fail["changes"][0]["sequence"] = 6
+        resolved_proof_to_fail["changes"].insert(
+            0,
+            {
+                "change_id": "chg-resolve-proof-to-fail",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:36:45+02:00",
+                "content_type": "FACT",
+                "operation": "RESOLVE",
+                "subject": "validation.validation.project.completion",
+                "value": proof_fail_claim,
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": initial["checkpoint"]["checkpoint_id"],
+                "validation_receipt_id": "vr-proof-resolution-authority",
+                "resolves_conflict_id": "conflict:fact:validation.validation.project.completion",
+                "source_ids": ["src-authorized-change"],
+            },
+        )
+        proof_fail_result = orient(resolved_proof_to_fail)
+        proof_fail_intake = intake_by_id(proof_fail_result)
+        self.assertEqual("APPLIED", proof_fail_intake["chg-resolve-proof-to-fail"]["status"])
+        self.assertEqual("REJECTED", proof_fail_intake["chg-resolve-validation-receipts"]["status"])
+        self.assertEqual(
+            "RECEIPT_RESOLUTION_DOES_NOT_SELECT_PROOF",
+            proof_fail_intake["chg-resolve-validation-receipts"]["reason"],
+        )
+
+        replay = copy.deepcopy(follow_up)
+        replay["as_of"] = "2026-07-19T08:45:00+02:00"
+        replay["checkpoints"] = {"primary": resolved["checkpoint"], "fallbacks": []}
+        replay["changes"] = []
+        replayed = orient(replay)
+        replayed_conflict = next(
+            item
+            for item in replayed["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.completion"
+        )
+        self.assertEqual("RESOLVED", replayed_conflict["status"])
+        self.assertEqual("PRIMARY_VALID", replayed["base_checkpoint"]["status"])
+
+        corroborating = copy.deepcopy(replay)
+        corroborating["validation_receipts"].append(
+            {
+                "receipt_id": "vr-later-corroborating-pass",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.completion",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:42:00+02:00",
+                "material": True,
+                "summary": "Clean checkout passed.",
+                "assertion_sha256": assertion_sha256,
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "later-corroboration", "status": "PASS"}],
+            }
+        )
+        corroborated_result = orient(corroborating)
+        corroborated_conflict = next(
+            item
+            for item in corroborated_result["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.completion"
+        )
+        self.assertEqual("RESOLVED", corroborated_conflict["status"])
+        self.assertEqual("FLOWING", corroborated_result["checkpoint"]["voltage"])
+        self.assertEqual("Clean checkout passed.", corroborated_result["checkpoint"]["city_position"])
+
+        reopened = copy.deepcopy(corroborating)
+        reopened["as_of"] = "2026-07-19T08:55:00+02:00"
+        reopened["checkpoints"] = {"primary": corroborated_result["checkpoint"], "fallbacks": []}
+        reopened["changes"] = []
+        reopened["validation_receipts"].append(
+            {
+                "receipt_id": "vr-later-conflicting-fail",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.completion",
+                "status": "FAIL",
+                "checked_at": "2026-07-19T08:50:00+02:00",
+                "material": True,
+                "summary": "A later retained validation failed.",
+                "assertion_sha256": assertion_sha256,
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "later-validation", "status": "FAIL"}],
+            }
+        )
+        reopened_result = orient(reopened)
+        reopened_conflict = next(
+            item
+            for item in reopened_result["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.completion"
+        )
+        self.assertEqual("DISPUTED", reopened_conflict["status"])
+        self.assertEqual(4, len(reopened_conflict["claims"]))
+        self.assertFalse(evaluate_success_condition(reopened_result, condition))
+        self.assertFalse(evaluate_success_condition(reopened_result, pass_condition))
+        self.assertFalse(
+            any(
+                lamp["type"] == "FACT" and lamp["subject"] == "validation.project.completion"
+                for lamp in reopened_result["checkpoint"]["active_lamps"]
+            )
+        )
+
+    def test_receipt_id_cannot_be_silently_overwritten_across_checkpoints(self):
+        initial_package = demo_package()
+        original = receipt_by_id(initial_package)
+        original["status"] = "UNKNOWN"
+        original["checks"][0]["status"] = "UNKNOWN"
         initial_package["changes"] = []
         initial = orient(initial_package)
 
@@ -303,15 +562,46 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         follow_up["as_of"] = "2026-07-19T08:40:00+02:00"
         follow_up["checkpoints"] = {"primary": initial["checkpoint"], "fallbacks": []}
         follow_up["changes"] = []
-        receipt = receipt_by_id(follow_up)
-        receipt["status"] = "PASS"
-        receipt["checked_at"] = "2026-07-19T08:35:00+02:00"
-        receipt["summary"] = "Clean checkout passed."
-        receipt["checks"] = [{"id": item["id"], "status": "PASS"} for item in receipt["checks"]]
-        resolved = orient(follow_up)
-        self.assertEqual([], [item for item in resolved["checkpoint"]["unknowns"] if item["subject"] == "project.completion"])
-        self.assertEqual("Clean checkout passed.", resolved["checkpoint"]["city_position"])
-        self.assertEqual("FLOWING", resolved["checkpoint"]["voltage"])
+        reused = receipt_by_id(follow_up)
+        reused["status"] = "PASS"
+        reused["checked_at"] = "2026-07-19T08:35:00+02:00"
+        reused["summary"] = "Clean checkout passed."
+        reused["checks"] = [{"id": "clean-checkout", "status": "PASS"}]
+
+        with self.assertRaisesRegex(OrientationError, "RECEIPT-ID-REUSE"):
+            orient(follow_up)
+
+    def test_receipt_ledger_cannot_be_deleted_to_rollback_identity_history(self):
+        original_package = demo_package()
+        latest = orient(copy.deepcopy(original_package))["checkpoint"]
+        ledger_deleted = copy.deepcopy(latest)
+        ledger_deleted.pop("validation_receipt_pointers")
+        ledger_deleted = seal_checkpoint(ledger_deleted)
+
+        replay = demo_package()
+        replay["checkpoints"] = {
+            "primary": ledger_deleted,
+            "fallbacks": [copy.deepcopy(original_package["checkpoints"]["primary"])],
+        }
+        replay["changes"] = []
+        receipt_by_id(replay)["summary"] = "Mutated meaning under a historical receipt ID."
+        with self.assertRaisesRegex(OrientationError, "RECEIPT-LINEAGE-UNKNOWN"):
+            orient(replay)
+
+    def test_corrupt_newer_checkpoint_cannot_rollback_receipt_identity_history(self):
+        original_package = demo_package()
+        latest = orient(copy.deepcopy(original_package))["checkpoint"]
+        latest["integrity"]["value"] = "0" * 64
+
+        replay = demo_package()
+        replay["checkpoints"] = {
+            "primary": latest,
+            "fallbacks": [copy.deepcopy(original_package["checkpoints"]["primary"])],
+        }
+        replay["changes"] = []
+        receipt_by_id(replay)["summary"] = "Mutated meaning after a corrupt primary checkpoint."
+        with self.assertRaisesRegex(OrientationError, "RECEIPT-ID-REUSE"):
+            orient(replay)
 
     def test_material_risk_returns_corrective_mitigation_step(self):
         package = demo_package()
@@ -395,7 +685,7 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
         result = orient(package)
         self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
-        self.assertIn("lamp identity", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+        self.assertIn("lamp", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
 
     def test_invalid_next_step_shape_cannot_bypass_fallback(self):
         package = demo_package()
@@ -609,7 +899,7 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
         result = orient(package)
         self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
-        self.assertIn("no active goal", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+        self.assertIn("exactly one active goal", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
 
     def test_checkpoint_non_fact_lamp_cannot_reference_missing_receipt(self):
         package = demo_package()
@@ -620,7 +910,7 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
         result = orient(package)
         self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
-        self.assertIn("validation receipt is unresolved", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+        self.assertIn("non-FACT", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
 
     def test_checkpoint_pointer_hash_binds_current_source_content(self):
         package = demo_package()
@@ -661,6 +951,102 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         self.assertEqual(canonical_json_bytes(result_a), canonical_json_bytes(result_b))
         self.assertTrue(any(item["classification"] == "CONTRADICTORY_VALIDATION_RECEIPTS" for item in result_a["checkpoint"]["conflicts"]))
         self.assertTrue(any(item["unknown_id"] == "unknown:receipt-conflict:project.completion" for item in result_a["checkpoint"]["unknowns"]))
+
+    def test_single_tail_receipt_merges_with_preserved_conflict_without_full_history(self):
+        initial_package = demo_package()
+        initial_package["changes"] = []
+        failed = receipt_by_id(initial_package)
+        failed["material"] = False
+        initial_package["validation_receipts"].append(
+            {
+                "receipt_id": "vr-pass-old-nonmaterial",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.completion",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:15:00+02:00",
+                "material": False,
+                "summary": "An earlier non-material validation passed.",
+                "assertion_sha256": failed["assertion_sha256"],
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "nonmaterial-pass", "status": "PASS"}],
+            }
+        )
+        initial = orient(initial_package)
+        initial_conflict = next(
+            item
+            for item in initial["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.completion"
+        )
+        self.assertFalse(initial_conflict["material"])
+        self.assertEqual("FLOWING", initial["checkpoint"]["voltage"])
+
+        follow_up = demo_package()
+        follow_up["as_of"] = "2026-07-19T08:50:00+02:00"
+        follow_up["checkpoints"] = {"primary": initial["checkpoint"], "fallbacks": []}
+        follow_up["changes"] = []
+        core_receipt = receipt_by_id(follow_up, "vr-core-001")
+        follow_up["validation_receipts"] = [
+            core_receipt,
+            {
+                "receipt_id": "vr-new-material-pass",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.completion",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:40:00+02:00",
+                "material": True,
+                "summary": "A new material claim differs from both preserved sides.",
+                "assertion_sha256": failed["assertion_sha256"],
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "material-tail-pass", "status": "PASS"}],
+            },
+        ]
+        result = orient(follow_up)
+        conflict = next(
+            item
+            for item in result["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.completion"
+        )
+        self.assertTrue(conflict["material"])
+        self.assertEqual(3, len(conflict["claims"]))
+        self.assertIn("vr-new-material-pass", {claim["claim_id"] for claim in conflict["claims"]})
+        self.assertEqual("BLOCKED", result["checkpoint"]["voltage"])
+        self.assertTrue(
+            any(
+                item["unknown_id"] == "unknown:receipt-conflict:project.completion"
+                and item["critical"]
+                for item in result["checkpoint"]["unknowns"]
+            )
+        )
+
+    def test_same_assertion_with_incompatible_summaries_is_disputed(self):
+        package = demo_package()
+        package["changes"] = []
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        shared = {
+            "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+            "subject": "project.completion",
+            "status": "PASS",
+            "checked_at": "2026-07-19T08:15:00+02:00",
+            "material": True,
+            "assertion_sha256": "4dc7bc201c36b6ce654527e82784f9dd66558c8c50078ac65b444cd37ac75837",
+            "source_ids": ["src-clean-validation"],
+            "checks": [{"id": "clean-checkout", "status": "PASS"}],
+        }
+        package["validation_receipts"].extend(
+            [
+                {**shared, "receipt_id": "vr-summary-a", "summary": "Project is complete and published."},
+                {**shared, "receipt_id": "vr-summary-b", "summary": "Project is locally complete but unpublished."},
+            ]
+        )
+
+        result = orient(package)
+        self.assertEqual(
+            "Current position is UNKNOWN because trusted validation receipts for project.completion disagree.",
+            result["checkpoint"]["city_position"],
+        )
+        self.assertTrue(any(item["subject"] == "validation.project.completion" for item in result["checkpoint"]["conflicts"]))
+        self.assertTrue(any(item["unknown_id"] == "unknown:receipt-conflict:project.completion" for item in result["checkpoint"]["unknowns"]))
+        self.assertEqual("PASS", result["run_receipt"]["status"])
 
     def test_pass_receipt_is_bound_to_exact_fact_value(self):
         package = demo_package()
@@ -709,8 +1095,16 @@ class RecoveryAndPolicyTests(unittest.TestCase):
             }
         ]
         result = orient(package)
-        self.assertEqual("APPLIED", result["intake"][0]["status"])
+        self.assertEqual("REJECTED", result["intake"][0]["status"])
+        self.assertEqual("RECEIPT_CONFLICT_BLOCKS_FACT", result["intake"][0]["reason"])
         self.assertFalse(any(item["type"] == "FACT" and item["subject"] == "project.phase" for item in result["checkpoint"]["active_lamps"]))
+        self.assertTrue(
+            any(
+                item["conflict_id"] == "conflict:fact:validation.project.phase"
+                and item["status"] == "DISPUTED"
+                for item in result["checkpoint"]["conflicts"]
+            )
+        )
 
     def test_unauthorized_evidence_cannot_remove_material_risk(self):
         initial_package = demo_package()
@@ -823,6 +1217,624 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         result = orient(package)
         self.assertEqual("MOVE_NOT_IMPLEMENTED_IN_MVP", result["intake"][0]["reason"])
 
+    def test_non_material_goal_conflict_never_flows_without_an_active_goal(self):
+        for operation in ("CREATE", "UPDATE"):
+            with self.subTest(operation=operation):
+                package = demo_package()
+                package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+                primary = package["checkpoints"]["primary"]
+                goal = next(item for item in primary["active_lamps"] if item["type"] == "GOAL")
+                goal["material"] = False
+                package["checkpoints"]["primary"] = seal_checkpoint(primary)
+                package["changes"] = [
+                    {
+                        "change_id": f"chg-non-material-goal-{operation.lower()}",
+                        "object_type": "STATE_CHANGE",
+                        "sequence": 5,
+                        "observed_at": "2026-07-19T08:00:00+02:00",
+                        "content_type": "GOAL",
+                        "operation": operation,
+                        "subject": "project.primary",
+                        "value": "Replace the active goal without material status.",
+                        "epistemic": "VERIFIED",
+                        "authority": "AUTHORIZED",
+                        "material": False,
+                        "expected_checkpoint_id": "cp-old-valid-001",
+                        "source_ids": ["src-pin-001"],
+                    }
+                ]
+
+                try:
+                    result = orient(package)
+                except OrientationError:
+                    # Rejecting the non-material goal policy at the package boundary is fail-closed.
+                    continue
+
+                disposition = result["intake"][0]
+                active_goals = [item for item in result["checkpoint"]["active_lamps"] if item["type"] == "GOAL"]
+                disputed_goal = any(
+                    item["type"] == "GOAL" and item["status"] == "DISPUTED"
+                    for item in result["checkpoint"]["conflicts"]
+                )
+                safely_rejected = disposition["status"] == "REJECTED" and bool(active_goals)
+                safely_blocked = disputed_goal and result["checkpoint"]["voltage"] == "BLOCKED"
+                self.assertTrue(safely_rejected or safely_blocked)
+                self.assertFalse(result["checkpoint"]["voltage"] == "FLOWING" and not active_goals)
+
+    def test_checkpoint_cannot_keep_active_lamp_for_same_disputed_subject(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(orient(package)["checkpoint"])
+        active_entrypoint = next(
+            item for item in fallback["active_lamps"]
+            if item["type"] == "DECISION" and item["subject"] == "demo.entrypoint"
+        )
+        malformed["active_lamps"].append(active_entrypoint)
+        package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertTrue(result["base_checkpoint"]["rejected_candidates"])
+
+    def test_goal_validation_requires_new_pass_for_exact_goal_subject(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-goal-validation-boundary",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:20:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "UPDATE",
+                "subject": "network.policy",
+                "value": "LOCAL_ONLY_NO_EXTERNAL_APIS",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+
+        result = orient(package)
+        condition = result["checkpoint"]["primary_next_step"]["success_condition"]
+        self.assertEqual(
+            {"type", "status", "subject", "checked_after", "assertion_sha256"},
+            set(condition),
+        )
+        self.assertEqual("validation_receipt_retained", condition["type"])
+        self.assertEqual("PASS", condition["status"])
+        self.assertEqual("project.primary", condition["subject"])
+        self.assertEqual(package["as_of"], condition["checked_after"])
+        goal = next(item for item in result["checkpoint"]["active_lamps"] if item["type"] == "GOAL")
+        self.assertEqual(
+            "7cecb593d92d68682f26ae66e6e9ce41f90c7a4d65093200b0736f2d28afb7f8",
+            condition["assertion_sha256"],
+        )
+        self.assertEqual(goal["subject"], condition["subject"])
+        self.assertFalse(evaluate_success_condition(result, condition))
+        later = copy.deepcopy(result)
+        later["validation_receipts"].append(
+            {
+                "receipt_id": "vr-goal-wrong-assertion",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.primary",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:31:00+02:00",
+                "material": True,
+                "summary": "A different goal assertion passed.",
+                "assertion_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "goal-assertion", "status": "PASS"}],
+            }
+        )
+        self.assertFalse(evaluate_success_condition(later, condition))
+        later["validation_receipts"][-1]["assertion_sha256"] = condition["assertion_sha256"]
+        self.assertTrue(evaluate_success_condition(later, condition))
+
+    def test_checkpoint_and_tail_both_enforce_exactly_one_active_goal(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        malformed["active_lamps"].append(
+            {
+                "lamp_id": "lamp:goal:project.secondary",
+                "type": "GOAL",
+                "subject": "project.secondary",
+                "value": "Competing second active goal.",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "source_ids": ["src-pin-001"],
+                "updated_at": "2026-07-18T18:00:00+02:00",
+                "material": True,
+            }
+        )
+        package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
+        package["changes"] = []
+        recovered = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", recovered["base_checkpoint"]["status"])
+
+        tail_package = demo_package()
+        tail_package["validation_receipts"] = [receipt_by_id(tail_package, "vr-core-001")]
+        tail_package["changes"] = [
+            {
+                "change_id": "chg-create-second-goal",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "GOAL",
+                "operation": "CREATE",
+                "subject": "project.secondary",
+                "value": "Competing second active goal.",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            }
+        ]
+        rejected = orient(tail_package)
+        self.assertEqual("REJECTED", rejected["intake"][0]["status"])
+        self.assertEqual(1, len([item for item in rejected["checkpoint"]["active_lamps"] if item["type"] == "GOAL"]))
+
+    def test_resolved_conflict_reopened_later_retains_resolution_history(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-open-entrypoint-once",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:05:00+02:00",
+                "content_type": "DECISION",
+                "operation": "UPDATE",
+                "subject": "demo.entrypoint",
+                "value": "python app.py --demo",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-entrypoint-new"],
+            },
+            {
+                "change_id": "chg-resolve-entrypoint-once",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:15:00+02:00",
+                "content_type": "DECISION",
+                "operation": "RESOLVE",
+                "subject": "demo.entrypoint",
+                "value": "python -m znak_orient serve --host 127.0.0.1 --port 8765",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "resolves_conflict_id": "conflict:decision:demo.entrypoint",
+                "source_ids": ["src-entrypoint-old", "src-entrypoint-new"],
+            },
+            {
+                "change_id": "chg-reopen-entrypoint",
+                "object_type": "STATE_CHANGE",
+                "sequence": 7,
+                "observed_at": "2026-07-19T08:21:00+02:00",
+                "content_type": "DECISION",
+                "operation": "UPDATE",
+                "subject": "demo.entrypoint",
+                "value": "python -m znak_orient serve --safe-mode",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            },
+        ]
+
+        result = orient(package)
+        conflict = next(
+            item for item in result["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:decision:demo.entrypoint"
+        )
+        self.assertEqual("DISPUTED", conflict["status"])
+        self.assertIn("chg-resolve-entrypoint-once", json.dumps(conflict, sort_keys=True))
+        self.assertIn("python -m znak_orient serve --safe-mode", [claim["value"] for claim in conflict["claims"]])
+
+    def test_non_material_trusted_fail_does_not_block_goal_voltage(self):
+        package = demo_package()
+        package["validation_receipts"] = [
+            receipt_by_id(package, "vr-core-001"),
+            {
+                "receipt_id": "vr-optional-fail",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.optional-check",
+                "status": "FAIL",
+                "checked_at": "2026-07-19T08:11:00+02:00",
+                "material": False,
+                "summary": "An optional diagnostic failed.",
+                "assertion_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "optional-diagnostic", "status": "FAIL"}],
+            },
+        ]
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FLOWING", result["checkpoint"]["voltage"])
+        self.assertEqual("GOAL_VALIDATION", result["checkpoint"]["primary_next_step"]["policy_class"])
+        self.assertFalse(any(item["subject"] == "project.optional-check" for item in result["checkpoint"]["unknowns"]))
+
+    def test_city_position_cannot_be_driven_by_unauthorized_source(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        malformed["city_position"] = "Project complete and externally published."
+        malformed["city_position_source_ids"] = ["src-untrusted-note"]
+        source = validate_source(next(item for item in package["sources"] if item["source_id"] == "src-untrusted-note"))
+        malformed["source_pointers"].append(
+            {
+                "source_id": source["source_id"],
+                "kind": source["kind"],
+                "locator": source["locator"],
+                "captured_at": source["captured_at"],
+                "authority": source["authority"],
+                "content_sha256": source["content_sha256"],
+            }
+        )
+        package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn("trusted checkpoint or receipt provenance", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+
+    def test_contradictory_material_receipts_do_not_select_one_side_as_position(self):
+        package = demo_package()
+        package["changes"] = []
+        package["validation_receipts"].append(
+            {
+                "receipt_id": "vr-clean-pass-position",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.completion",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:15:00+02:00",
+                "material": True,
+                "summary": "Clean checkout passed.",
+                "assertion_sha256": "4dc7bc201c36b6ce654527e82784f9dd66558c8c50078ac65b444cd37ac75837",
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "clean-checkout", "status": "PASS"}],
+            }
+        )
+
+        result = orient(package)
+        self.assertEqual(
+            "Current position is UNKNOWN because trusted validation receipts for project.completion disagree.",
+            result["checkpoint"]["city_position"],
+        )
+        self.assertTrue(any(item["subject"] == "validation.project.completion" for item in result["checkpoint"]["conflicts"]))
+        self.assertTrue(any(item["unknown_id"] == "unknown:receipt-conflict:project.completion" for item in result["checkpoint"]["unknowns"]))
+
+    def test_machine_constraint_can_forbid_selected_policy_class(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-forbid-goal-validation",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "CREATE",
+                "subject": "policy.forbidden-classes",
+                "value": {"forbidden_policy_classes": ["GOAL_VALIDATION"]},
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            }
+        ]
+
+        result = orient(package)
+        step = result["checkpoint"]["primary_next_step"]
+        self.assertEqual("BROKEN", result["checkpoint"]["voltage"])
+        self.assertEqual("CORRECTIVE_CONSTRAINT_RESOLUTION", step["policy_class"])
+        self.assertEqual("constraint_policy_allows", step["success_condition"]["type"])
+        self.assertFalse(evaluate_success_condition(result, step["success_condition"]))
+        constraint = next(item for item in step["constraints"] if item["subject"] == "policy.forbidden-classes")
+        self.assertEqual({"forbidden_policy_classes": ["GOAL_VALIDATION"]}, constraint["value"])
+
+    def test_constraint_correction_preserves_contested_goal_context(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-forbid-conflict-resolution",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "CREATE",
+                "subject": "policy.conflict-resolution",
+                "value": {"forbidden_policy_classes": ["CORRECTIVE_CONFLICT_RESOLUTION"]},
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            },
+            {
+                "change_id": "chg-contest-primary-goal",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:01:00+02:00",
+                "content_type": "GOAL",
+                "operation": "UPDATE",
+                "subject": "project.primary",
+                "value": "A competing primary goal.",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            },
+        ]
+
+        result = orient(package)
+        self.assertEqual("BROKEN", result["checkpoint"]["voltage"])
+        self.assertEqual("CORRECTIVE_CONSTRAINT_RESOLUTION", result["checkpoint"]["primary_next_step"]["policy_class"])
+        self.assertEqual("project.primary", result["checkpoint"]["primary_next_step"]["goal"]["subject"])
+        self.assertEqual("PASS", result["run_receipt"]["status"])
+
+    def test_constraint_cannot_forbid_the_only_meta_correction_policy(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-self-locking-constraint",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "CREATE",
+                "subject": "policy.self-locking",
+                "value": {
+                    "forbidden_policy_classes": [
+                        "GOAL_VALIDATION",
+                        "CORRECTIVE_CONSTRAINT_RESOLUTION",
+                    ]
+                },
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            }
+        ]
+
+        result = orient(package)
+        self.assertEqual("REJECTED", result["intake"][0]["status"])
+        self.assertEqual("UNSUPPORTED_CONSTRAINT_POLICY", result["intake"][0]["reason"])
+        self.assertFalse(any(item["subject"] == "policy.self-locking" for item in result["checkpoint"]["active_lamps"]))
+
+    def test_historical_conflict_claim_id_reuse_is_rejected_without_invalid_output(self):
+        initial = orient(demo_package())
+        package = demo_package()
+        package["as_of"] = "2026-07-19T08:45:00+02:00"
+        package["checkpoints"] = {"primary": initial["checkpoint"], "fallbacks": []}
+        package["changes"] = [
+            {
+                "change_id": "chg-entrypoint-conflict",
+                "object_type": "STATE_CHANGE",
+                "sequence": initial["checkpoint"]["last_sequence"] + 1,
+                "observed_at": "2026-07-19T08:40:00+02:00",
+                "content_type": "DECISION",
+                "operation": "UPDATE",
+                "subject": "demo.entrypoint",
+                "value": "python -m znak_orient serve --another-mode",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": initial["checkpoint"]["checkpoint_id"],
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+
+        result = orient(package)
+        self.assertEqual("REJECTED", result["intake"][0]["status"])
+        self.assertEqual("HISTORICAL_ID_REUSE", result["intake"][0]["reason"])
+        self.assertEqual("PASS", result["run_receipt"]["status"])
+        claim_ids = [
+            claim["claim_id"]
+            for conflict in result["checkpoint"]["conflicts"]
+            for claim in conflict["claims"]
+        ]
+        self.assertEqual(len(claim_ids), len(set(claim_ids)))
+
+    def test_active_lamp_id_cannot_be_reused_as_conflicting_change_id(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "lamp:decision:demo.entrypoint",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "DECISION",
+                "operation": "UPDATE",
+                "subject": "demo.entrypoint",
+                "value": "python app.py --demo",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+
+        result = orient(package)
+        self.assertEqual("REJECTED", result["intake"][0]["status"])
+        self.assertEqual("HISTORICAL_ID_REUSE", result["intake"][0]["reason"])
+        self.assertEqual("PASS", result["run_receipt"]["status"])
+
+    def test_latest_valid_checkpoint_is_selected_across_fallbacks(self):
+        package = demo_package()
+        newer = orient(copy.deepcopy(package))["checkpoint"]
+        package["checkpoints"] = {
+            "primary": package["checkpoints"]["primary"],
+            "fallbacks": [newer],
+        }
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("LATEST_VALID_FALLBACK_SELECTED", result["base_checkpoint"]["status"])
+        self.assertEqual(newer["checkpoint_id"], result["base_checkpoint"]["checkpoint_id"])
+
+    def test_latest_checkpoint_tie_uses_semantic_cursor_before_primary_label(self):
+        def constraint_change(change_id, sequence, subject):
+            return {
+                "change_id": change_id,
+                "object_type": "STATE_CHANGE",
+                "sequence": sequence,
+                "observed_at": f"2026-07-19T08:0{sequence}:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "CREATE",
+                "subject": subject,
+                "value": "LOCAL_ONLY",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            }
+
+        primary_package = demo_package()
+        primary_package["validation_receipts"] = [receipt_by_id(primary_package, "vr-core-001")]
+        primary_package["changes"] = [constraint_change("chg-seq-five", 5, "policy.seq-five")]
+        primary = orient(primary_package)["checkpoint"]
+
+        fallback_package = demo_package()
+        fallback_package["validation_receipts"] = [receipt_by_id(fallback_package, "vr-core-001")]
+        fallback_package["changes"] = [
+            constraint_change("chg-seq-five", 5, "policy.seq-five"),
+            constraint_change("chg-seq-six", 6, "policy.seq-six"),
+        ]
+        fallback = orient(fallback_package)["checkpoint"]
+        self.assertEqual(primary["created_at"], fallback["created_at"])
+        self.assertGreater(fallback["last_sequence"], primary["last_sequence"])
+
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["checkpoints"] = {"primary": primary, "fallbacks": [fallback]}
+        package["changes"] = []
+        result = orient(package)
+        self.assertEqual(fallback["checkpoint_id"], result["base_checkpoint"]["checkpoint_id"])
+        self.assertEqual("LATEST_VALID_FALLBACK_SELECTED", result["base_checkpoint"]["status"])
+
+    def test_checkpoint_recent_changes_cannot_exceed_cursor_or_creation_time(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        malformed["recent_changes"] = [
+            {
+                "change_id": "chg-impossible-history",
+                "sequence": malformed["last_sequence"] + 1,
+                "status": "APPLIED",
+                "reason": "Impossible retained history.",
+                "source_ids": ["src-pin-001"],
+                "observed_at": "2030-01-01T00:00:00+02:00",
+                "before": None,
+                "after": {"value": "future"},
+            }
+        ]
+        package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn("recent change", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+
+    def test_checkpoint_recent_change_sequence_must_be_positive(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        malformed["recent_changes"] = [
+            {
+                "change_id": "chg-negative-history",
+                "sequence": -1,
+                "status": "APPLIED",
+                "reason": "Impossible negative history.",
+                "source_ids": ["src-pin-001"],
+                "observed_at": "2026-07-19T07:45:00+02:00",
+                "before": None,
+                "after": {"value": "invalid"},
+            }
+        ]
+        package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [fallback]}
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn("recent change", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+
+    def test_source_pointers_cover_recent_changes_and_resolution_history(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-deactivate-entrypoint-for-coverage",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "DECISION",
+                "operation": "DEACTIVATE",
+                "subject": "demo.entrypoint",
+                "value": "python -m znak_orient serve --host 127.0.0.1 --port 8765",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+
+        result = orient(package)
+        pointers = {item["source_id"] for item in result["checkpoint"]["source_pointers"]}
+        self.assertIn("src-authorized-change", pointers)
+        for change in result["checkpoint"]["recent_changes"]:
+            self.assertTrue(set(change["source_ids"]).issubset(pointers))
+        for conflict in result["checkpoint"]["conflicts"]:
+            for resolution in conflict.get("resolution_history", []):
+                self.assertTrue(set(resolution["source_ids"]).issubset(pointers))
+
+    def test_checkpoint_position_cannot_select_one_side_of_receipt_dispute(self):
+        package = demo_package()
+        package["changes"] = []
+        package["validation_receipts"].append(
+            {
+                "receipt_id": "vr-clean-pass-checkpoint",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.completion",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:15:00+02:00",
+                "material": True,
+                "summary": "Clean checkout passed.",
+                "assertion_sha256": "4dc7bc201c36b6ce654527e82784f9dd66558c8c50078ac65b444cd37ac75837",
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "clean-checkout", "status": "PASS"}],
+            }
+        )
+        neutral = orient(copy.deepcopy(package))["checkpoint"]
+        malformed = copy.deepcopy(neutral)
+        failed = receipt_by_id(package, "vr-clean-007")
+        malformed["city_position"] = failed["summary"]
+        malformed["city_position_source_ids"] = list(failed["source_ids"])
+        package["checkpoints"] = {"primary": seal_checkpoint(malformed), "fallbacks": [neutral]}
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn("deterministic evidence policy", result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+
     def test_checkpoint_sealing_detects_tamper(self):
         checkpoint = seal_checkpoint(
             {
@@ -839,11 +1851,963 @@ class RecoveryAndPolicyTests(unittest.TestCase):
                 "voltage": "UNKNOWN",
                 "primary_next_step": {"action_id": "ask", "source_ids": ["src"]},
                 "source_pointers": [],
+                "validation_receipt_pointers": [],
             }
         )
         self.assertTrue(verify_checkpoint_integrity(checkpoint))
         checkpoint["city_position"] = "tampered"
         self.assertFalse(verify_checkpoint_integrity(checkpoint))
+
+
+class TemporalBoundaryRegressionTests(unittest.TestCase):
+    def test_checkpoint_integrity_object_rejects_unsupported_fields(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        malformed["integrity"]["unsupported"] = "ignored"
+        package["checkpoints"] = {"primary": malformed, "fallbacks": [fallback]}
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn(
+            "integrity shape is not closed",
+            result["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def _orient_with_rejected_primary(
+        self,
+        package,
+        malformed,
+        fallback,
+        expected_reason,
+    ):
+        package["checkpoints"] = {
+            "primary": seal_checkpoint(malformed),
+            "fallbacks": [copy.deepcopy(fallback)],
+        }
+        package["changes"] = []
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn(expected_reason, result["base_checkpoint"]["rejected_candidates"][0]["reason"])
+        self.assertEqual(fallback["checkpoint_id"], result["base_checkpoint"]["checkpoint_id"])
+        return result
+
+    def _resolved_entrypoint_checkpoint(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-open-entrypoint-temporal-regression",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:05:00+02:00",
+                "content_type": "DECISION",
+                "operation": "UPDATE",
+                "subject": "demo.entrypoint",
+                "value": "python app.py --demo",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-entrypoint-new"],
+            },
+            {
+                "change_id": "chg-resolve-entrypoint-temporal-regression",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:10:00+02:00",
+                "content_type": "DECISION",
+                "operation": "RESOLVE",
+                "subject": "demo.entrypoint",
+                "value": "python -m znak_orient serve --host 127.0.0.1 --port 8765",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "resolves_conflict_id": "conflict:decision:demo.entrypoint",
+                "source_ids": ["src-entrypoint-old", "src-entrypoint-new"],
+            },
+        ]
+        checkpoint = orient(package)["checkpoint"]
+        conflict = next(
+            item for item in checkpoint["conflicts"]
+            if item["conflict_id"] == "conflict:decision:demo.entrypoint"
+        )
+        self.assertEqual("RESOLVED", conflict["status"])
+        return package, checkpoint
+
+    def test_tail_change_rejects_source_or_receipt_that_postdates_it(self):
+        source_package = demo_package()
+        source_package["validation_receipts"] = [receipt_by_id(source_package, "vr-core-001")]
+        source = next(
+            item for item in source_package["sources"]
+            if item["source_id"] == "src-authorized-change"
+        )
+        source["captured_at"] = "2026-07-19T08:06:00+02:00"
+        source_package["changes"] = [
+            {
+                "change_id": "chg-source-after-tail",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:05:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "CREATE",
+                "subject": "network.postdated-source",
+                "value": "LOCAL_ONLY",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+        source_result = orient(source_package)
+        self.assertEqual("REJECTED", source_result["intake"][0]["status"])
+        self.assertEqual("SOURCE_POSTDATES_CHANGE", source_result["intake"][0]["reason"])
+        self.assertFalse(
+            any(
+                lamp["subject"] == "network.postdated-source"
+                for lamp in source_result["checkpoint"]["active_lamps"]
+            )
+        )
+
+        receipt_package = demo_package()
+        receipt_package["changes"] = [
+            {
+                "change_id": "chg-receipt-after-tail",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:05:00+02:00",
+                "content_type": "FACT",
+                "operation": "CREATE",
+                "subject": "project.completion",
+                "value": "COMPLETE",
+                "epistemic": "VERIFIED",
+                "authority": "NOT_APPLICABLE",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "validation_receipt_id": "vr-clean-007",
+                "source_ids": ["src-clean-validation"],
+            }
+        ]
+        receipt_result = orient(receipt_package)
+        self.assertEqual("REJECTED", receipt_result["intake"][0]["status"])
+        self.assertEqual("RECEIPT_POSTDATES_CHANGE", receipt_result["intake"][0]["reason"])
+        self.assertFalse(
+            any(
+                lamp["subject"] == "project.completion"
+                for lamp in receipt_result["checkpoint"]["active_lamps"]
+            )
+        )
+
+    def test_resolution_earlier_than_competing_claim_is_rejected(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-open-entrypoint-before-stale-resolution",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:05:00+02:00",
+                "content_type": "DECISION",
+                "operation": "UPDATE",
+                "subject": "demo.entrypoint",
+                "value": "python app.py --demo",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-entrypoint-new"],
+            },
+            {
+                "change_id": "chg-resolve-before-competing-claim",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:04:00+02:00",
+                "content_type": "DECISION",
+                "operation": "RESOLVE",
+                "subject": "demo.entrypoint",
+                "value": "python -m znak_orient serve --host 127.0.0.1 --port 8765",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "resolves_conflict_id": "conflict:decision:demo.entrypoint",
+                "source_ids": ["src-entrypoint-old", "src-entrypoint-new"],
+            },
+        ]
+
+        result = orient(package)
+        intake = intake_by_id(result)
+        self.assertEqual("DISPUTED", intake["chg-open-entrypoint-before-stale-resolution"]["status"])
+        self.assertEqual("REJECTED", intake["chg-resolve-before-competing-claim"]["status"])
+        self.assertEqual("STALE_CONFLICT_EVENT", intake["chg-resolve-before-competing-claim"]["reason"])
+        conflict = next(
+            item for item in result["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:decision:demo.entrypoint"
+        )
+        self.assertEqual("DISPUTED", conflict["status"])
+        self.assertFalse(
+            any(
+                lamp["type"] == "DECISION" and lamp["subject"] == "demo.entrypoint"
+                for lamp in result["checkpoint"]["active_lamps"]
+            )
+        )
+
+    def test_sealed_checkpoint_rejects_extra_recovery_card_and_postdated_members(self):
+        extra_card_package = demo_package()
+        fallback = copy.deepcopy(extra_card_package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        malformed["recovery_card"] = {"write_back_allowed": False}
+        self._orient_with_rejected_primary(
+            extra_card_package,
+            malformed,
+            fallback,
+            "top-level shape is not closed",
+        )
+
+        source_package = demo_package()
+        fallback = copy.deepcopy(source_package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        source_package["sources"].append(
+            {
+                "source_id": "src-after-checkpoint",
+                "kind": "USER_DECISION",
+                "locator": "demo://decisions/after-checkpoint",
+                "captured_at": "2026-07-19T07:51:00+02:00",
+                "authority": "AUTHORIZED",
+                "excerpt": "Captured after the sealed checkpoint.",
+            }
+        )
+        normalized_source = validate_source(source_package["sources"][-1])
+        malformed["source_pointers"].append(
+            {
+                key: normalized_source[key]
+                for key in (
+                    "source_id",
+                    "kind",
+                    "locator",
+                    "captured_at",
+                    "authority",
+                    "content_sha256",
+                )
+            }
+        )
+        self._orient_with_rejected_primary(
+            source_package,
+            malformed,
+            fallback,
+            "source pointer is newer than the checkpoint",
+        )
+
+        lamp_package = demo_package()
+        fallback = copy.deepcopy(lamp_package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        goal = next(item for item in malformed["active_lamps"] if item["type"] == "GOAL")
+        goal["updated_at"] = "2026-07-19T07:51:00+02:00"
+        self._orient_with_rejected_primary(
+            lamp_package,
+            malformed,
+            fallback,
+            "lamp is newer than the checkpoint",
+        )
+
+        receipt_package = demo_package()
+        fallback = copy.deepcopy(receipt_package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        fact_subject = "checkpoint.postdated-receipt"
+        fact_value = "VERIFIED_TOO_LATE"
+        receipt_package["validation_receipts"].append(
+            {
+                "receipt_id": "vr-after-checkpoint",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": fact_subject,
+                "status": "PASS",
+                "checked_at": "2026-07-19T07:51:00+02:00",
+                "material": False,
+                "summary": "Receipt checked after checkpoint creation.",
+                "assertion_sha256": sha256_hex({"subject": fact_subject, "value": fact_value}),
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "postdated-check", "status": "PASS"}],
+            }
+        )
+        malformed["active_lamps"].append(
+            {
+                "lamp_id": f"lamp:fact:{fact_subject}",
+                "type": "FACT",
+                "subject": fact_subject,
+                "value": fact_value,
+                "epistemic": "VERIFIED",
+                "authority": "NOT_APPLICABLE",
+                "validation_receipt_id": "vr-after-checkpoint",
+                "source_ids": ["src-clean-validation"],
+                "updated_at": fallback["created_at"],
+                "material": False,
+            }
+        )
+        clean_source = validate_source(
+            next(
+                item for item in receipt_package["sources"]
+                if item["source_id"] == "src-clean-validation"
+            )
+        )
+        malformed["source_pointers"].append(
+            {
+                key: clean_source[key]
+                for key in (
+                    "source_id",
+                    "kind",
+                    "locator",
+                    "captured_at",
+                    "authority",
+                    "content_sha256",
+                )
+            }
+        )
+        self._orient_with_rejected_primary(
+            receipt_package,
+            malformed,
+            fallback,
+            "validation receipt postdates the lamp",
+        )
+
+    def test_resolved_conflict_must_match_active_lamp_exactly(self):
+        package, resolved = self._resolved_entrypoint_checkpoint()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+
+        mutations = {
+            "missing lamp": lambda checkpoint: checkpoint.__setitem__(
+                "active_lamps",
+                [
+                    lamp for lamp in checkpoint["active_lamps"]
+                    if not (lamp["type"] == "DECISION" and lamp["subject"] == "demo.entrypoint")
+                ],
+            ),
+            "different preserved value": lambda checkpoint: next(
+                lamp for lamp in checkpoint["active_lamps"]
+                if lamp["type"] == "DECISION" and lamp["subject"] == "demo.entrypoint"
+            ).__setitem__("value", "python app.py --demo"),
+            "different sources": lambda checkpoint: next(
+                lamp for lamp in checkpoint["active_lamps"]
+                if lamp["type"] == "DECISION" and lamp["subject"] == "demo.entrypoint"
+            ).__setitem__("source_ids", ["src-entrypoint-old"]),
+            "different timestamp": lambda checkpoint: next(
+                lamp for lamp in checkpoint["active_lamps"]
+                if lamp["type"] == "DECISION" and lamp["subject"] == "demo.entrypoint"
+            ).__setitem__("updated_at", "2026-07-19T08:11:00+02:00"),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                malformed = copy.deepcopy(resolved)
+                mutate(malformed)
+                self._orient_with_rejected_primary(
+                    copy.deepcopy(package),
+                    malformed,
+                    fallback,
+                    "resolved conflict is inconsistent with its active lamp",
+                )
+
+    def test_resolved_conflict_selects_preserved_claim_with_authorized_trusted_provenance(self):
+        package, resolved = self._resolved_entrypoint_checkpoint()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+
+        unpreserved = copy.deepcopy(resolved)
+        conflict = next(
+            item for item in unpreserved["conflicts"]
+            if item["conflict_id"] == "conflict:decision:demo.entrypoint"
+        )
+        conflict["resolution_history"][-1]["value"] = "python -m znak_orient serve --unpreserved"
+        resolved_lamp = next(
+            item for item in unpreserved["active_lamps"]
+            if item["type"] == "DECISION" and item["subject"] == "demo.entrypoint"
+        )
+        resolved_lamp["value"] = conflict["resolution_history"][-1]["value"]
+        self._orient_with_rejected_primary(
+            copy.deepcopy(package),
+            unpreserved,
+            fallback,
+            "resolution selects an unpreserved claim",
+        )
+
+        untrusted = copy.deepcopy(resolved)
+        conflict = next(
+            item for item in untrusted["conflicts"]
+            if item["conflict_id"] == "conflict:decision:demo.entrypoint"
+        )
+        conflict["resolution_history"][-1]["source_ids"] = ["src-checkpoint-001"]
+        self._orient_with_rejected_primary(
+            copy.deepcopy(package),
+            untrusted,
+            fallback,
+            "resolution lacks authorized provenance",
+        )
+
+
+class SemanticSuccessConditionRegressionTests(unittest.TestCase):
+    def test_receipt_dispute_suspends_active_fact_and_keeps_its_claim(self):
+        package = demo_package()
+        core_receipt = receipt_by_id(package, "vr-core-001")
+        package["validation_receipts"].append(
+            {
+                "receipt_id": "vr-core-conflicting-fail",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "project.phase",
+                "status": "FAIL",
+                "checked_at": "2026-07-19T08:15:00+02:00",
+                "material": True,
+                "summary": "Core phase validation failed.",
+                "assertion_sha256": core_receipt["assertion_sha256"],
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "core-phase", "status": "FAIL"}],
+            }
+        )
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertFalse(
+            any(
+                lamp["type"] == "FACT" and lamp["subject"] == "project.phase"
+                for lamp in result["checkpoint"]["active_lamps"]
+            )
+        )
+        conflict = next(
+            item
+            for item in result["checkpoint"]["conflicts"]
+            if item["conflict_id"] == "conflict:fact:validation.project.phase"
+        )
+        self.assertEqual("DISPUTED", conflict["status"])
+        self.assertIn("lamp:fact:project.phase", {claim["claim_id"] for claim in conflict["claims"]})
+        self.assertTrue(result["run_receipt"]["checks"]["disputed_claims_not_action_driving"])
+        self.assertEqual("PASS", result["run_receipt"]["status"])
+
+    def test_new_receipt_dispute_replaces_receipt_driven_position_with_unknown(self):
+        first_package = demo_package()
+        first_package["validation_receipts"] = [receipt_by_id(first_package, "vr-core-001")]
+        first_package["validation_receipts"].append(
+            {
+                "receipt_id": "vr-release-pass",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "release.state",
+                "status": "PASS",
+                "checked_at": "2026-07-19T08:10:00+02:00",
+                "material": True,
+                "summary": "Release state passed.",
+                "assertion_sha256": "b" * 64,
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "release-state", "status": "PASS"}],
+            }
+        )
+        first_package["changes"] = []
+        first = orient(first_package)
+        self.assertEqual("Release state passed.", first["checkpoint"]["city_position"])
+
+        follow_up = copy.deepcopy(first_package)
+        follow_up["as_of"] = "2026-07-19T08:40:00+02:00"
+        follow_up["checkpoints"] = {"primary": first["checkpoint"], "fallbacks": []}
+        follow_up["validation_receipts"].append(
+            {
+                "receipt_id": "vr-release-fail",
+                "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+                "subject": "release.state",
+                "status": "FAIL",
+                "checked_at": "2026-07-19T08:35:00+02:00",
+                "material": True,
+                "summary": "Release state failed.",
+                "assertion_sha256": "b" * 64,
+                "source_ids": ["src-clean-validation"],
+                "checks": [{"id": "release-state", "status": "FAIL"}],
+            }
+        )
+
+        result = orient(follow_up)
+        self.assertEqual(
+            "Current position is UNKNOWN because trusted validation receipts for release.state disagree.",
+            result["checkpoint"]["city_position"],
+        )
+        self.assertEqual("BLOCKED", result["checkpoint"]["voltage"])
+        self.assertEqual("PASS", result["run_receipt"]["status"])
+
+    def test_second_goal_is_rejected_while_primary_goal_is_disputed(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            {
+                "change_id": "chg-contest-goal-before-second",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "GOAL",
+                "operation": "UPDATE",
+                "subject": "project.primary",
+                "value": "A competing primary goal.",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            },
+            {
+                "change_id": "chg-create-second-during-goal-conflict",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:01:00+02:00",
+                "content_type": "GOAL",
+                "operation": "CREATE",
+                "subject": "project.secondary",
+                "value": "A second active goal.",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-pin-001"],
+            },
+        ]
+
+        result = orient(package)
+        intake = intake_by_id(result)
+        self.assertEqual("DISPUTED", intake["chg-contest-goal-before-second"]["status"])
+        self.assertEqual("REJECTED", intake["chg-create-second-during-goal-conflict"]["status"])
+        self.assertEqual(
+            "MULTIPLE_GOAL_CONTEXTS_NOT_ALLOWED",
+            intake["chg-create-second-during-goal-conflict"]["reason"],
+        )
+        self.assertEqual("BLOCKED", result["checkpoint"]["voltage"])
+
+    def test_same_value_materiality_upgrade_is_a_semantic_change(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        base_change = {
+            "object_type": "STATE_CHANGE",
+            "content_type": "RISK",
+            "subject": "risk.same-value",
+            "value": "Risk exists.",
+            "epistemic": "SUPPORTED",
+            "authority": "NOT_APPLICABLE",
+            "expected_checkpoint_id": "cp-old-valid-001",
+            "source_ids": ["src-clean-validation"],
+        }
+        package["changes"] = [
+            {
+                **base_change,
+                "change_id": "chg-risk-nonmaterial",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "operation": "CREATE",
+                "material": False,
+            },
+            {
+                **base_change,
+                "change_id": "chg-risk-material",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:01:00+02:00",
+                "operation": "UPDATE",
+                "material": True,
+            },
+        ]
+
+        result = orient(package)
+        intake = intake_by_id(result)
+        self.assertEqual("STATE_METADATA_UPDATED", intake["chg-risk-material"]["reason"])
+        risk = next(
+            lamp for lamp in result["checkpoint"]["active_lamps"] if lamp["subject"] == "risk.same-value"
+        )
+        self.assertTrue(risk["material"])
+        self.assertEqual("WEAK", result["checkpoint"]["voltage"])
+
+    def test_same_value_corroboration_uses_instant_order_across_offsets(self):
+        package = demo_package()
+        package["as_of"] = "2026-07-19T10:00:00+02:00"
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["sources"].append(
+            {
+                "source_id": "src-offset-corroboration",
+                "kind": "USER_DECISION",
+                "locator": "demo://decisions/offset-corroboration",
+                "captured_at": "2026-07-19T07:00:00+00:00",
+                "authority": "AUTHORIZED",
+                "excerpt": "Same risk corroborated in a different timezone offset.",
+            }
+        )
+        base_change = {
+            "object_type": "STATE_CHANGE",
+            "content_type": "RISK",
+            "subject": "risk.offset",
+            "value": "Risk exists.",
+            "epistemic": "SUPPORTED",
+            "authority": "NOT_APPLICABLE",
+            "material": True,
+            "expected_checkpoint_id": "cp-old-valid-001",
+        }
+        package["changes"] = [
+            {
+                **base_change,
+                "change_id": "chg-risk-offset-create",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "operation": "CREATE",
+                "source_ids": ["src-clean-validation"],
+            },
+            {
+                **base_change,
+                "change_id": "chg-risk-offset-update",
+                "sequence": 6,
+                "observed_at": "2026-07-19T07:30:00+00:00",
+                "operation": "UPDATE",
+                "source_ids": ["src-offset-corroboration"],
+            },
+        ]
+
+        result = orient(package)
+        risk = next(
+            lamp for lamp in result["checkpoint"]["active_lamps"] if lamp["subject"] == "risk.offset"
+        )
+        self.assertEqual("2026-07-19T07:30:00+00:00", risk["updated_at"])
+        self.assertEqual(
+            {"src-clean-validation", "src-offset-corroboration"},
+            set(risk["source_ids"]),
+        )
+
+    def test_success_condition_evaluator_rejects_open_or_unsupported_shapes(self):
+        result = orient(demo_package())
+        valid_conditions = [
+            {
+                "type": "conflict_resolved",
+                "subject": "demo.entrypoint",
+                "content_type": "DECISION",
+                "required_authority": "AUTHORIZED",
+            },
+            {
+                "type": "constraint_policy_allows",
+                "subject": "network.policy",
+                "policy_class": "GOAL_VALIDATION",
+            },
+            {"type": "unknown_resolved", "subject": "absent.unknown"},
+            {"type": "risk_mitigated", "subject": "absent.risk"},
+            {
+                "type": "validation_pass",
+                "status": "PASS",
+                "subject": "project.completion",
+                "checked_after": "2026-07-19T08:00:00+02:00",
+                "assertion_sha256": "a" * 64,
+            },
+            {
+                "type": "validation_receipt_retained",
+                "status": "PASS",
+                "subject": "project.primary",
+                "checked_after": "2026-07-19T08:00:00+02:00",
+                "assertion_sha256": "a" * 64,
+            },
+        ]
+
+        for condition in valid_conditions:
+            with self.subTest(condition_type=condition["type"]):
+                malformed = {**condition, "extra": "must not be ignored"}
+                self.assertFalse(evaluate_success_condition(result, malformed))
+        self.assertFalse(
+            evaluate_success_condition(
+                result,
+                {"type": "unsupported", "subject": "absent.risk"},
+            )
+        )
+
+    @staticmethod
+    def _trusted_completion_pass():
+        return {
+            "receipt_id": "vr-clean-pass-success-condition",
+            "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+            "subject": "project.completion",
+            "status": "PASS",
+            "checked_at": "2026-07-19T08:15:00+02:00",
+            "material": True,
+            "summary": "Clean checkout passed.",
+            "assertion_sha256": "4dc7bc201c36b6ce654527e82784f9dd66558c8c50078ac65b444cd37ac75837",
+            "source_ids": ["src-clean-validation"],
+            "checks": [{"id": "clean-checkout", "status": "PASS"}],
+        }
+
+    def test_old_object_conditions_stay_false_when_material_conflict_replaces_active_state(self):
+        constraint_package = demo_package()
+        constraint_package["validation_receipts"] = [
+            receipt_by_id(constraint_package, "vr-core-001")
+        ]
+        constraint_package["changes"] = [
+            {
+                "change_id": "chg-dispute-network-policy-for-condition",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "CONSTRAINT",
+                "operation": "UPDATE",
+                "subject": "network.policy",
+                "value": "LOCAL_ONLY",
+                "epistemic": "VERIFIED",
+                "authority": "AUTHORIZED",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-authorized-change"],
+            }
+        ]
+        constraint_result = orient(constraint_package)
+        constraint_conflict = next(
+            item for item in constraint_result["checkpoint"]["conflicts"]
+            if item["type"] == "CONSTRAINT" and item["subject"] == "network.policy"
+        )
+        self.assertEqual("DISPUTED", constraint_conflict["status"])
+        self.assertTrue(constraint_conflict["material"])
+        self.assertFalse(
+            any(
+                lamp["type"] == "CONSTRAINT" and lamp["subject"] == "network.policy"
+                for lamp in constraint_result["checkpoint"]["active_lamps"]
+            )
+        )
+        self.assertFalse(
+            evaluate_success_condition(
+                constraint_result,
+                {
+                    "type": "constraint_policy_allows",
+                    "subject": "network.policy",
+                    "policy_class": "GOAL_VALIDATION",
+                },
+            )
+        )
+
+        risk_package = demo_package()
+        risk_package["validation_receipts"] = [receipt_by_id(risk_package, "vr-core-001")]
+        risk_package["changes"] = [
+            {
+                "change_id": "chg-create-risk-for-condition",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "RISK",
+                "operation": "CREATE",
+                "subject": "storage.integrity",
+                "value": "Backup has not been verified.",
+                "epistemic": "SUPPORTED",
+                "authority": "NOT_APPLICABLE",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-clean-validation"],
+            },
+            {
+                "change_id": "chg-dispute-risk-for-condition",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:01:00+02:00",
+                "content_type": "RISK",
+                "operation": "UPDATE",
+                "subject": "storage.integrity",
+                "value": "Backup verification is sufficient.",
+                "epistemic": "SUPPORTED",
+                "authority": "NOT_APPLICABLE",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-clean-validation"],
+            },
+        ]
+        risk_result = orient(risk_package)
+        risk_conflict = next(
+            item for item in risk_result["checkpoint"]["conflicts"]
+            if item["type"] == "RISK" and item["subject"] == "storage.integrity"
+        )
+        self.assertEqual("DISPUTED", risk_conflict["status"])
+        self.assertTrue(risk_conflict["material"])
+        self.assertFalse(
+            any(
+                lamp["type"] == "RISK" and lamp["subject"] == "storage.integrity"
+                for lamp in risk_result["checkpoint"]["active_lamps"]
+            )
+        )
+        self.assertFalse(
+            evaluate_success_condition(
+                risk_result,
+                {"type": "risk_mitigated", "subject": "storage.integrity"},
+            )
+        )
+
+        unknown_package = demo_package()
+        unknown_package["validation_receipts"] = [
+            receipt_by_id(unknown_package, "vr-core-001")
+        ]
+        unknown_package["changes"] = [
+            {
+                "change_id": "chg-create-unknown-for-condition",
+                "object_type": "STATE_CHANGE",
+                "sequence": 5,
+                "observed_at": "2026-07-19T08:00:00+02:00",
+                "content_type": "UNKNOWN",
+                "operation": "CREATE",
+                "subject": "release.owner",
+                "value": "Release owner is unknown.",
+                "epistemic": "UNKNOWN",
+                "authority": "NOT_APPLICABLE",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-clean-validation"],
+            },
+            {
+                "change_id": "chg-dispute-unknown-for-condition",
+                "object_type": "STATE_CHANGE",
+                "sequence": 6,
+                "observed_at": "2026-07-19T08:01:00+02:00",
+                "content_type": "UNKNOWN",
+                "operation": "UPDATE",
+                "subject": "release.owner",
+                "value": "Release owner may be assigned.",
+                "epistemic": "UNKNOWN",
+                "authority": "NOT_APPLICABLE",
+                "material": True,
+                "expected_checkpoint_id": "cp-old-valid-001",
+                "source_ids": ["src-clean-validation"],
+            },
+        ]
+        unknown_result = orient(unknown_package)
+        unknown_conflict = next(
+            item for item in unknown_result["checkpoint"]["conflicts"]
+            if item["type"] == "UNKNOWN" and item["subject"] == "release.owner"
+        )
+        self.assertEqual("DISPUTED", unknown_conflict["status"])
+        self.assertTrue(unknown_conflict["material"])
+        self.assertFalse(
+            any(
+                lamp["type"] == "UNKNOWN" and lamp["subject"] == "release.owner"
+                for lamp in unknown_result["checkpoint"]["active_lamps"]
+            )
+        )
+        self.assertFalse(
+            evaluate_success_condition(
+                unknown_result,
+                {"type": "unknown_resolved", "subject": "release.owner"},
+            )
+        )
+
+    def test_unknown_resolved_follows_validation_lineage_after_contradictory_receipts(self):
+        package = demo_package()
+        package["changes"] = []
+        package["validation_receipts"].append(self._trusted_completion_pass())
+
+        result = orient(package)
+        self.assertTrue(
+            any(
+                item["status"] == "DISPUTED"
+                and item["type"] == "FACT"
+                and item["subject"] == "validation.project.completion"
+                for item in result["checkpoint"]["conflicts"]
+            )
+        )
+        self.assertTrue(
+            any(
+                item["subject"] == "validation.project.completion"
+                for item in result["checkpoint"]["unknowns"]
+            )
+        )
+        for subject in ("project.completion", "project.completion.failure_cause"):
+            with self.subTest(subject=subject):
+                self.assertFalse(
+                    evaluate_success_condition(
+                        result,
+                        {"type": "unknown_resolved", "subject": subject},
+                    )
+                )
+
+    def test_validation_conditions_fail_closed_on_contradictory_trusted_receipts(self):
+        package = demo_package()
+        package["changes"] = []
+        passing_receipt = self._trusted_completion_pass()
+        package["validation_receipts"].append(passing_receipt)
+        result = orient(package)
+
+        for condition_type in ("validation_pass", "validation_receipt_retained"):
+            with self.subTest(condition_type=condition_type):
+                self.assertFalse(
+                    evaluate_success_condition(
+                        result,
+                        {
+                            "type": condition_type,
+                            "status": "PASS",
+                            "subject": passing_receipt["subject"],
+                            "checked_after": "2026-07-19T08:10:00+02:00",
+                            "assertion_sha256": passing_receipt["assertion_sha256"],
+                        },
+                    )
+                )
+
+    def test_validation_conditions_require_matching_hash_and_strictly_later_receipt(self):
+        package = demo_package()
+        package["changes"] = []
+        passing_receipt = self._trusted_completion_pass()
+        package["validation_receipts"] = [
+            receipt_by_id(package, "vr-core-001"),
+            passing_receipt,
+        ]
+        result = orient(package)
+
+        for condition_type in ("validation_pass", "validation_receipt_retained"):
+            valid = {
+                "type": condition_type,
+                "status": "PASS",
+                "subject": passing_receipt["subject"],
+                "checked_after": "2026-07-19T08:14:00+02:00",
+                "assertion_sha256": passing_receipt["assertion_sha256"],
+            }
+            with self.subTest(condition_type=condition_type, variant="valid"):
+                self.assertTrue(evaluate_success_condition(result, valid))
+
+            wrong_hash = copy.deepcopy(valid)
+            wrong_hash["assertion_sha256"] = "a" * 64
+            with self.subTest(condition_type=condition_type, variant="wrong_hash"):
+                self.assertFalse(evaluate_success_condition(result, wrong_hash))
+
+            equal_time = copy.deepcopy(valid)
+            equal_time["checked_after"] = passing_receipt["checked_at"]
+            with self.subTest(condition_type=condition_type, variant="equal_time"):
+                self.assertFalse(evaluate_success_condition(result, equal_time))
+
+    def test_receipt_and_change_material_must_be_json_boolean(self):
+        invalid_material_values = (1, "true", None)
+        for value in invalid_material_values:
+            with self.subTest(contract="receipt", value=value):
+                package = demo_package()
+                package["validation_receipts"][0]["material"] = value
+                with self.assertRaisesRegex(
+                    OrientationError,
+                    "receipt.material must be a JSON boolean",
+                ):
+                    orient(package)
+
+            with self.subTest(contract="change", value=value):
+                package = demo_package()
+                state_change = next(
+                    item for item in package["changes"]
+                    if item.get("object_type") == "STATE_CHANGE"
+                )
+                state_change["material"] = value
+                with self.assertRaisesRegex(
+                    OrientationError,
+                    "change.material must be a JSON boolean",
+                ):
+                    orient(package)
+
+    def test_checkpoint_non_fact_lamp_rejects_existing_validation_receipt(self):
+        package = demo_package()
+        fallback = copy.deepcopy(package["checkpoints"]["primary"])
+        malformed = copy.deepcopy(fallback)
+        decision = next(item for item in malformed["active_lamps"] if item["type"] == "DECISION")
+        decision["validation_receipt_id"] = "vr-core-001"
+        package["checkpoints"] = {
+            "primary": seal_checkpoint(malformed),
+            "fallbacks": [fallback],
+        }
+        package["changes"] = []
+
+        result = orient(package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", result["base_checkpoint"]["status"])
+        self.assertIn(
+            "non-FACT lamp cannot retain a validation receipt",
+            result["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+        self.assertEqual(fallback["checkpoint_id"], result["base_checkpoint"]["checkpoint_id"])
 
 
 if __name__ == "__main__":

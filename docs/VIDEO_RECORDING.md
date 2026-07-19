@@ -6,11 +6,11 @@
 | --- | --- |
 | File | `artifacts/znak-orient-demo.webm` |
 | Status | `EXECUTED_LOCAL / NOT_PUBLISHED` |
-| Duration | 35.12 seconds |
+| Duration | 34.92 seconds |
 | Frame | 1440×900, 25 fps |
 | Codec | VP8 in WebM |
-| Bytes | 2,836,670 |
-| SHA-256 | `eb4b080035a68fec13167e05201e7343030b99c1779f5186b5c85028a7bb433e` |
+| Bytes | 3,027,097 |
+| SHA-256 | `eb3aadb035cf6e081c6dd5b14a2a45d2fb948e4316ece04810c95cba49db3382` |
 
 The capture was produced from the real loopback application by `tools/record_demo.cjs`. Browser routing rejected every non-loopback host. The recording walks through rerun, Rejected/All filtering, conflict and unknowns, Recovery Card copy, source evidence, receipts, and return to Current Position. It contains no narration and is distinct from the proposed 2:35 narrated script in `DEMO_SCRIPT.md`.
 

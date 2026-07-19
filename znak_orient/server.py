@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .engine import OrientationError, orient
+from .strict_json import StrictJsonError, strict_json_loads
 
 WEB_ROOT = Path(__file__).resolve().parent / "web"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -135,9 +136,9 @@ def _handler(demo_path: Path, *, allow_non_loopback: bool):
             path = urlsplit(self.path).path
             if path == "/api/demo":
                 try:
-                    package = json.loads(demo_path.read_text(encoding="utf-8"))
+                    package = strict_json_loads(demo_path.read_text(encoding="utf-8"))
                     self._send_json(HTTPStatus.OK, orient(package))
-                except (OSError, json.JSONDecodeError, OrientationError) as exc:
+                except (OSError, StrictJsonError, OrientationError) as exc:
                     self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "DEMO_PROCESSING_FAILED", "detail": str(exc)})
                 return
             static = STATIC_FILES.get(path)
@@ -171,9 +172,9 @@ def _handler(demo_path: Path, *, allow_non_loopback: bool):
                 self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "REQUEST_SIZE_INVALID"})
                 return
             try:
-                package = json.loads(self.rfile.read(length).decode("utf-8"))
+                package = strict_json_loads(self.rfile.read(length).decode("utf-8"))
                 self._send_json(HTTPStatus.OK, orient(package))
-            except (UnicodeDecodeError, json.JSONDecodeError, OrientationError) as exc:
+            except (UnicodeDecodeError, StrictJsonError, OrientationError) as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "PACKAGE_REJECTED", "detail": str(exc)})
 
     return Handler

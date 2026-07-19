@@ -17,6 +17,7 @@ from .contracts import (
     normalize_change,
     parse_instant,
     require,
+    require_closed_keys,
     require_list,
     require_mapping,
     require_text,
@@ -31,7 +32,22 @@ class OrientationError(ValueError):
 
 
 VOLTAGES = {"FLOWING", "WEAK", "BLOCKED", "BROKEN", "UNKNOWN"}
+POLICY_CLASSES = {
+    "CORRECTIVE_CONFLICT_RESOLUTION",
+    "CORRECTIVE_CONSTRAINT_RESOLUTION",
+    "CORRECTIVE_EVIDENCE_COLLECTION",
+    "CORRECTIVE_RISK_MITIGATION",
+    "CORRECTIVE_VALIDATION",
+    "GOAL_VALIDATION",
+}
+FORBIDDABLE_POLICY_CLASSES = POLICY_CLASSES - {"CORRECTIVE_CONSTRAINT_RESOLUTION"}
+KNOWN_CONSTRAINT_LITERALS = {
+    "LOCAL_ONLY",
+    "LOCAL_ONLY_NO_EXTERNAL_APIS",
+    "REQUIRES_SEPARATE_USER_CONFIRMATION",
+}
 SUCCESS_CONDITION_TYPES = {
+    "constraint_policy_allows",
     "conflict_resolved",
     "risk_mitigated",
     "unknown_resolved",
@@ -60,8 +76,83 @@ def _receipt_is_trusted_pass(receipt: dict[str, Any]) -> bool:
     )
 
 
-def _receipt_claim_identity(receipt: dict[str, Any]) -> tuple[str, str]:
-    return receipt["status"], receipt.get("assertion_sha256", "")
+def _receipt_claim_identity(receipt: dict[str, Any]) -> tuple[str, str, str]:
+    # The human-readable summary is itself consumed as the canonical city
+    # position. Two receipts that bind the same assertion but describe its
+    # outcome differently therefore remain incompatible claims; silently
+    # choosing one summary would turn ambiguous evidence into orientation.
+    return receipt["status"], receipt.get("assertion_sha256", ""), receipt["summary"]
+
+
+def _receipt_claim_value(receipt: dict[str, Any]) -> dict[str, str]:
+    return {
+        "status": receipt["status"],
+        "summary": receipt["summary"],
+        "assertion_sha256": receipt["assertion_sha256"],
+    }
+
+
+def _receipt_conflict_claim(receipt: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "claim_id": receipt["receipt_id"],
+        "value": _receipt_claim_value(receipt),
+        "epistemic": "DISPUTED",
+        "asserted_epistemic": "VERIFIED",
+        "authority": "NOT_APPLICABLE",
+        "source_ids": list(receipt["source_ids"]),
+        "observed_at": receipt["checked_at"],
+    }
+
+
+def _receipt_resolution_selection(
+    receipt: dict[str, Any],
+    conflicts: Iterable[dict[str, Any]],
+    active_lamps: Iterable[dict[str, Any]],
+) -> str:
+    """Return NO_CONFLICT, OPEN, SELECTED, or NOT_SELECTED for a proof receipt."""
+
+    conflict_subject = f"validation.{receipt['subject']}"
+    matching = [
+        conflict
+        for conflict in conflicts
+        if conflict.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+        and conflict.get("type") == "FACT"
+        and conflict.get("subject") == conflict_subject
+    ]
+    if not matching:
+        return "NO_CONFLICT"
+    if len(matching) != 1 or matching[0].get("status") != "RESOLVED":
+        return "OPEN"
+    selected = [
+        lamp
+        for lamp in active_lamps
+        if lamp.get("type") == "FACT" and lamp.get("subject") == conflict_subject
+    ]
+    if len(selected) != 1:
+        return "OPEN"
+    return (
+        "SELECTED"
+        if sha256_hex(selected[0].get("value")) == sha256_hex(_receipt_claim_value(receipt))
+        else "NOT_SELECTED"
+    )
+
+
+def _constraint_value_is_valid(value: Any) -> bool:
+    if isinstance(value, str):
+        return value in KNOWN_CONSTRAINT_LITERALS
+    if not isinstance(value, dict) or set(value) != {"forbidden_policy_classes"}:
+        return False
+    forbidden = value["forbidden_policy_classes"]
+    return (
+        isinstance(forbidden, list)
+        and bool(forbidden)
+        and len(forbidden) == len(set(forbidden))
+        and all(item in FORBIDDABLE_POLICY_CLASSES for item in forbidden)
+    )
+
+
+def _constraint_forbids(value: Any, policy_class: str) -> bool:
+    return isinstance(value, dict) and policy_class in value.get("forbidden_policy_classes", [])
 
 
 def _source_id_list(value: Any, known_sources: set[str], *, allow_empty: bool = False) -> bool:
@@ -79,13 +170,35 @@ def _success_condition_is_valid(value: Any) -> bool:
     condition_type = value["type"]
     if condition_type == "conflict_resolved":
         return (
-            set(value) == {"type", "subject", "required_authority"}
+            set(value) == {"type", "subject", "content_type", "required_authority"}
             and _text(value.get("subject"))
+            and value.get("content_type") in CONTENT_TYPES
             and value.get("required_authority") == "AUTHORIZED"
         )
-    if condition_type in {"risk_mitigated", "unknown_resolved", "validation_pass"}:
+    if condition_type == "constraint_policy_allows":
+        return (
+            set(value) == {"type", "subject", "policy_class"}
+            and _text(value.get("subject"))
+            and value.get("policy_class") in POLICY_CLASSES
+        )
+    if condition_type in {"risk_mitigated", "unknown_resolved"}:
         return set(value) == {"type", "subject"} and _text(value.get("subject"))
-    return set(value) == {"type", "status"} and value.get("status") == "PASS"
+    if set(value) != {"type", "status", "subject", "checked_after", "assertion_sha256"}:
+        return False
+    assertion_sha256 = value.get("assertion_sha256")
+    if (
+        value.get("status") != "PASS"
+        or not _text(value.get("subject"))
+        or not isinstance(assertion_sha256, str)
+        or len(assertion_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in assertion_sha256)
+    ):
+        return False
+    try:
+        parse_instant(value.get("checked_after"), "STEP-TIME", "success_condition.checked_after")
+    except ContractError:
+        return False
+    return True
 
 
 def _next_step_is_valid(value: Any, known_sources: set[str]) -> bool:
@@ -105,7 +218,7 @@ def _next_step_is_valid(value: Any, known_sources: set[str]) -> bool:
         return False
     if not all(_text(value.get(field)) for field in ("action_id", "instruction", "reason")):
         return False
-    if "policy_class" in value and not _text(value["policy_class"]):
+    if value.get("policy_class") not in POLICY_CLASSES:
         return False
     if not _source_id_list(value.get("source_ids"), known_sources):
         return False
@@ -114,6 +227,7 @@ def _next_step_is_valid(value: Any, known_sources: set[str]) -> bool:
     goal = value.get("goal")
     if goal is not None and (
         not isinstance(goal, dict)
+        or set(goal) != {"subject", "source_ids"}
         or not _text(goal.get("subject"))
         or not _source_id_list(goal.get("source_ids"), known_sources)
     ):
@@ -121,9 +235,13 @@ def _next_step_is_valid(value: Any, known_sources: set[str]) -> bool:
     constraints = value.get("constraints", [])
     if not isinstance(constraints, list):
         return False
+    if len(constraints) != len({item.get("subject") for item in constraints if isinstance(item, dict)}):
+        return False
     return all(
         isinstance(item, dict)
+        and set(item) == {"subject", "value", "source_ids"}
         and _text(item.get("subject"))
+        and _constraint_value_is_valid(item.get("value"))
         and _source_id_list(item.get("source_ids"), known_sources)
         for item in constraints
     )
@@ -137,6 +255,35 @@ def _checkpoint_is_semantically_valid(
 ) -> tuple[bool, str]:
     if not isinstance(checkpoint, dict):
         return False, "checkpoint is not an object"
+    required_checkpoint_fields = {
+        "schema_version",
+        "checkpoint_id",
+        "created_at",
+        "last_sequence",
+        "city_position",
+        "city_position_source_ids",
+        "active_lamps",
+        "recent_changes",
+        "conflicts",
+        "unknowns",
+        "voltage",
+        "primary_next_step",
+        "source_pointers",
+        "validation_receipt_pointers",
+        "integrity",
+    }
+    if set(checkpoint) != required_checkpoint_fields:
+        return False, "checkpoint top-level shape is not closed"
+    integrity = checkpoint.get("integrity")
+    if (
+        not isinstance(integrity, dict)
+        or set(integrity) != {"algorithm", "value"}
+        or integrity.get("algorithm") != "sha256"
+        or not isinstance(integrity.get("value"), str)
+        or len(integrity["value"]) != 64
+        or any(character not in "0123456789abcdef" for character in integrity["value"])
+    ):
+        return False, "checkpoint integrity shape is not closed"
     if checkpoint.get("schema_version") != SCHEMA_VERSION:
         return False, "unsupported checkpoint schema"
     try:
@@ -159,6 +306,78 @@ def _checkpoint_is_semantically_valid(
     known_source_ids = set(sources)
     if not _source_id_list(checkpoint.get("city_position_source_ids"), known_source_ids):
         return False, "checkpoint city-position sources are unresolved"
+    eligible_position_sources = {
+        source_id
+        for source_id, source in sources.items()
+        if source["kind"] == "CHECKPOINT" and source["authority"] == "AUTHORIZED"
+    }
+    checkpoint_receipts = [
+        receipt
+        for receipt in receipts.values()
+        if receipt["validator_id"] in TRUSTED_VALIDATOR_IDS
+        and parse_instant(receipt["checked_at"], "CP-RECEIPT-TIME", "receipt.checked_at") <= created_at
+    ]
+    receipt_pointers = checkpoint["validation_receipt_pointers"]
+    if not isinstance(receipt_pointers, list):
+        return False, "checkpoint validation receipt pointers must be an array"
+    receipt_pointer_by_id: dict[str, dict[str, Any]] = {}
+    for pointer in receipt_pointers:
+        if (
+            not isinstance(pointer, dict)
+            or set(pointer)
+            != {"receipt_id", "receipt_sha256", "subject", "checked_at", "source_ids"}
+            or not _text(pointer.get("receipt_id"))
+            or not _text(pointer.get("subject"))
+            or not isinstance(pointer.get("receipt_sha256"), str)
+            or len(pointer["receipt_sha256"]) != 64
+            or any(character not in "0123456789abcdef" for character in pointer["receipt_sha256"])
+            or not _source_id_list(pointer.get("source_ids"), known_source_ids)
+        ):
+            return False, "checkpoint validation receipt pointer is invalid"
+        receipt_id = pointer["receipt_id"]
+        if receipt_id in receipt_pointer_by_id:
+            return False, "checkpoint validation receipt pointer is duplicated"
+        try:
+            checked_at = parse_instant(
+                pointer["checked_at"], "CP-RECEIPT-TIME", "validation_receipt_pointer.checked_at"
+            )
+        except ContractError as exc:
+            return False, str(exc)
+        if checked_at > created_at or any(
+            parse_instant(sources[source_id]["captured_at"], "CP-SOURCE-TIME", "source.captured_at")
+            > checked_at
+            for source_id in pointer["source_ids"]
+        ):
+            return False, "checkpoint validation receipt pointer has impossible chronology"
+        current_receipt = receipts.get(receipt_id)
+        if current_receipt is not None:
+            if sha256_hex(current_receipt) != pointer["receipt_sha256"]:
+                return False, f"RECEIPT_ID_REUSE:{receipt_id} changed after checkpointing"
+            if (
+                current_receipt["subject"] != pointer["subject"]
+                or current_receipt["checked_at"] != pointer["checked_at"]
+                or current_receipt["source_ids"] != pointer["source_ids"]
+            ):
+                return False, f"RECEIPT_ID_REUSE:{receipt_id} pointer metadata changed"
+        receipt_pointer_by_id[receipt_id] = pointer
+    if any(
+        receipt["receipt_id"] not in receipt_pointer_by_id for receipt in checkpoint_receipts
+    ):
+        return False, "checkpoint validation receipt pointers do not cover retained receipts"
+    checkpoint_receipt_claims: dict[str, set[tuple[str, str, str]]] = {}
+    for receipt in checkpoint_receipts:
+        checkpoint_receipt_claims.setdefault(receipt["subject"], set()).add(_receipt_claim_identity(receipt))
+    disputed_checkpoint_receipt_subjects = {
+        subject for subject, identities in checkpoint_receipt_claims.items() if len(identities) > 1
+    }
+    for receipt in checkpoint_receipts:
+        if (
+            receipt["subject"] not in disputed_checkpoint_receipt_subjects
+            and receipt["status"] in {"PASS", "FAIL"}
+            and receipt["material"]
+            and receipt["summary"] == checkpoint["city_position"]
+        ):
+            eligible_position_sources.update(receipt["source_ids"])
     if checkpoint.get("voltage") not in VOLTAGES:
         return False, "checkpoint.voltage is invalid"
     if not _next_step_is_valid(checkpoint.get("primary_next_step"), known_source_ids):
@@ -167,9 +386,25 @@ def _checkpoint_is_semantically_valid(
     lamps = checkpoint["active_lamps"]
     lamp_ids: set[str] = set()
     lamp_keys: set[tuple[str, str]] = set()
+    lamp_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for lamp in lamps:
         if not isinstance(lamp, dict):
             return False, "checkpoint lamp is not an object"
+        required_lamp_fields = {
+            "lamp_id",
+            "type",
+            "subject",
+            "value",
+            "epistemic",
+            "authority",
+            "source_ids",
+            "updated_at",
+            "material",
+        }
+        if not required_lamp_fields.issubset(lamp) or not set(lamp).issubset(
+            required_lamp_fields | {"validation_receipt_id"}
+        ):
+            return False, "checkpoint lamp shape is not closed"
         lamp_id, lamp_type, subject = lamp.get("lamp_id"), lamp.get("type"), lamp.get("subject")
         if not _text(lamp_id) or lamp_type not in CONTENT_TYPES or not _text(subject) or "value" not in lamp:
             return False, "checkpoint lamp identity is invalid"
@@ -179,6 +414,7 @@ def _checkpoint_is_semantically_valid(
             return False, "checkpoint contains duplicate lamps"
         lamp_ids.add(lamp_id)
         lamp_keys.add((lamp_type, subject))
+        lamp_by_key[(lamp_type, subject)] = lamp
         if lamp.get("epistemic") not in EPISTEMIC_STATES or lamp.get("epistemic") == "DISPUTED":
             return False, "checkpoint contains an action-driving disputed lamp"
         if lamp.get("authority") not in AUTHORITIES or not isinstance(lamp.get("material"), bool):
@@ -186,14 +422,31 @@ def _checkpoint_is_semantically_valid(
         if not _source_id_list(lamp.get("source_ids"), known_source_ids):
             return False, "checkpoint lamp sources are unresolved"
         lamp_sources = [sources[source_id] for source_id in lamp["source_ids"]]
+        try:
+            lamp_updated_at = parse_instant(lamp.get("updated_at"), "CP-LAMP-TIME", "lamp.updated_at")
+        except ContractError as exc:
+            return False, str(exc)
+        if lamp_updated_at > created_at:
+            return False, "checkpoint lamp is newer than the checkpoint"
+        if any(
+            parse_instant(source["captured_at"], "CP-SOURCE-TIME", "source.captured_at") > lamp_updated_at
+            for source in lamp_sources
+        ):
+            return False, "checkpoint lamp source postdates the lamp"
         receipt = None
         if "validation_receipt_id" in lamp:
+            if lamp_type != "FACT":
+                return False, "checkpoint non-FACT lamp cannot retain a validation receipt"
             receipt_id = lamp.get("validation_receipt_id")
             if not _text(receipt_id) or receipt_id not in receipts:
                 return False, "checkpoint lamp validation receipt is unresolved"
             receipt = receipts[receipt_id]
             if receipt["subject"] != subject or not set(receipt["source_ids"]).issubset(lamp["source_ids"]):
                 return False, "checkpoint lamp validation receipt provenance is inconsistent"
+            if parse_instant(
+                receipt["checked_at"], "CP-RECEIPT-TIME", "receipt.checked_at"
+            ) > lamp_updated_at:
+                return False, "checkpoint lamp validation receipt postdates the lamp"
         if lamp_type in {"GOAL", "DECISION", "CONSTRAINT"}:
             if lamp["authority"] != "AUTHORIZED":
                 return False, "checkpoint authority-driving lamp is not authorized"
@@ -202,6 +455,10 @@ def _checkpoint_is_semantically_valid(
                 for source in lamp_sources
             ):
                 return False, "checkpoint authority-driving lamp has an untrusted source"
+        if lamp_type == "GOAL" and not lamp["material"]:
+            return False, "checkpoint goal must be material"
+        if lamp_type == "CONSTRAINT" and not _constraint_value_is_valid(lamp["value"]):
+            return False, "checkpoint constraint policy is unsupported"
         if lamp_type == "FACT":
             if (
                 lamp["epistemic"] != "VERIFIED"
@@ -212,22 +469,26 @@ def _checkpoint_is_semantically_valid(
                 or not set(receipt["source_ids"]).issubset(lamp["source_ids"])
             ):
                 return False, "checkpoint fact lamp lacks a value-bound trusted PASS receipt"
-        try:
-            if parse_instant(lamp.get("updated_at"), "CP-LAMP-TIME", "lamp.updated_at") > as_of_instant:
-                return False, "checkpoint lamp is from the future"
-        except ContractError as exc:
-            return False, str(exc)
     goal_lamps = sorted((lamp for lamp in lamps if lamp["type"] == "GOAL"), key=lambda item: item["subject"])
-    if not goal_lamps and not any(
-        isinstance(item, dict) and item.get("type") == "GOAL" and item.get("status") == "DISPUTED"
-        for item in checkpoint["conflicts"]
-    ):
-        return False, "checkpoint has no active goal"
 
     conflict_ids: set[str] = set()
     for conflict in checkpoint["conflicts"]:
         if not isinstance(conflict, dict) or not _text(conflict.get("conflict_id")):
             return False, "checkpoint conflict is invalid"
+        required_conflict_fields = {
+            "conflict_id",
+            "type",
+            "subject",
+            "material",
+            "status",
+            "classification",
+            "reason",
+            "claims",
+        }
+        if not required_conflict_fields.issubset(conflict) or not set(conflict).issubset(
+            required_conflict_fields | {"resolution_history", "resolution_change_id"}
+        ):
+            return False, "checkpoint conflict shape is not closed"
         if conflict["conflict_id"] in conflict_ids:
             return False, "checkpoint contains duplicate conflicts"
         conflict_ids.add(conflict["conflict_id"])
@@ -237,15 +498,34 @@ def _checkpoint_is_semantically_valid(
             return False, "checkpoint conflict ID does not match its type and subject"
         if conflict.get("status") not in {"DISPUTED", "RESOLVED"} or not isinstance(conflict.get("material"), bool):
             return False, "checkpoint conflict policy fields are invalid"
+        if conflict["type"] == "GOAL" and not conflict["material"]:
+            return False, "checkpoint goal conflict must be material"
         if not _text(conflict.get("reason")):
             return False, "checkpoint conflict reason is invalid"
+        if conflict.get("classification") not in {
+            "CONTRADICTION_UNRESOLVED",
+            "CONTRADICTION_REOPENED",
+            "CONTRADICTORY_VALIDATION_RECEIPTS",
+        }:
+            return False, "checkpoint conflict classification is invalid"
         claims = conflict.get("claims")
         if not isinstance(claims, list) or len(claims) < 2:
             return False, "checkpoint conflict must preserve at least two claims"
         claim_ids: set[str] = set()
+        claim_times: list[Any] = []
         for claim in claims:
             if (
                 not isinstance(claim, dict)
+                or set(claim)
+                != {
+                    "claim_id",
+                    "value",
+                    "epistemic",
+                    "asserted_epistemic",
+                    "authority",
+                    "source_ids",
+                    "observed_at",
+                }
                 or not _text(claim.get("claim_id"))
                 or "value" not in claim
                 or claim.get("epistemic") != "DISPUTED"
@@ -259,15 +539,180 @@ def _checkpoint_is_semantically_valid(
                 return False, "checkpoint conflict contains duplicate claims"
             claim_ids.add(claim["claim_id"])
             try:
-                if parse_instant(claim.get("observed_at"), "CP-CLAIM-TIME", "claim.observed_at") > as_of_instant:
-                    return False, "checkpoint conflict claim is from the future"
+                claim_time = parse_instant(claim.get("observed_at"), "CP-CLAIM-TIME", "claim.observed_at")
             except ContractError as exc:
                 return False, str(exc)
+            if claim_time > created_at:
+                return False, "checkpoint conflict claim is newer than the checkpoint"
+            if any(
+                parse_instant(sources[source_id]["captured_at"], "CP-SOURCE-TIME", "source.captured_at")
+                > claim_time
+                for source_id in claim["source_ids"]
+            ):
+                return False, "checkpoint conflict claim source postdates the claim"
+            claim_times.append(claim_time)
+        claim_value_hashes = {sha256_hex(claim["value"]) for claim in claims}
+        history = conflict.get("resolution_history", [])
+        if not isinstance(history, list):
+            return False, "checkpoint conflict resolution history is invalid"
+        history_ids: set[str] = set()
+        resolution_times: list[Any] = []
+        for resolution in history:
+            if (
+                not isinstance(resolution, dict)
+                or set(resolution) != {"change_id", "value", "source_ids", "observed_at"}
+                or not _text(resolution.get("change_id"))
+                or resolution["change_id"] in history_ids
+                or not _source_id_list(resolution.get("source_ids"), known_source_ids)
+            ):
+                return False, "checkpoint conflict resolution history entry is invalid"
+            history_ids.add(resolution["change_id"])
+            try:
+                resolution_time = parse_instant(
+                    resolution.get("observed_at"), "CP-RESOLUTION-TIME", "resolution.observed_at"
+                )
+            except ContractError as exc:
+                return False, str(exc)
+            if resolution_time > created_at:
+                return False, "checkpoint conflict resolution is newer than the checkpoint"
+            if any(
+                parse_instant(sources[source_id]["captured_at"], "CP-SOURCE-TIME", "source.captured_at")
+                > resolution_time
+                for source_id in resolution["source_ids"]
+            ):
+                return False, "checkpoint conflict resolution source postdates the resolution"
+            if any(
+                sources[source_id]["authority"] != "AUTHORIZED"
+                or sources[source_id]["kind"] not in TRUSTED_AUTHORITY_SOURCE_KINDS
+                for source_id in resolution["source_ids"]
+            ):
+                return False, "checkpoint conflict resolution lacks authorized provenance"
+            if sha256_hex(resolution["value"]) not in claim_value_hashes:
+                return False, "checkpoint conflict resolution selects an unpreserved claim"
+            resolution_times.append(resolution_time)
+        if resolution_times != sorted(resolution_times):
+            return False, "checkpoint conflict resolution history is not chronological"
+        meaningful_claim_times = claim_times
+        if conflict["classification"] == "CONTRADICTORY_VALIDATION_RECEIPTS":
+            first_time_by_value: dict[str, Any] = {}
+            for claim, claim_time in zip(claims, claim_times):
+                value_hash = sha256_hex(claim["value"])
+                prior_time = first_time_by_value.get(value_hash)
+                if prior_time is None or claim_time < prior_time:
+                    first_time_by_value[value_hash] = claim_time
+            meaningful_claim_times = list(first_time_by_value.values())
+        if len(meaningful_claim_times) < 2:
+            return False, "checkpoint conflict does not preserve two distinct claims"
+        if resolution_times:
+            if resolution_times[0] < sorted(meaningful_claim_times)[1]:
+                return False, "checkpoint conflict was resolved before competing claims existed"
+            if conflict["status"] == "RESOLVED" and resolution_times[-1] < max(meaningful_claim_times):
+                return False, "checkpoint conflict resolution predates an unresolved claim"
+            if conflict["status"] == "DISPUTED" and resolution_times[-1] >= max(meaningful_claim_times):
+                return False, "checkpoint disputed conflict lacks a later reopening claim"
+        if conflict["status"] == "RESOLVED" and (
+            not _text(conflict.get("resolution_change_id"))
+            or not history
+            or history[-1]["change_id"] != conflict["resolution_change_id"]
+        ):
+            return False, "checkpoint resolved conflict lacks retained resolution history"
+        if conflict["status"] == "RESOLVED":
+            resolved_lamp = lamp_by_key.get((conflict["type"], conflict["subject"]))
+            latest_resolution = history[-1]
+            expected_lamp_sources = set(latest_resolution["source_ids"])
+            if resolved_lamp is not None and conflict["type"] == "FACT":
+                receipt_id = resolved_lamp.get("validation_receipt_id")
+                if receipt_id in receipts:
+                    expected_lamp_sources.update(receipts[receipt_id]["source_ids"])
+            if (
+                resolved_lamp is None
+                or resolved_lamp["authority"] != "AUTHORIZED"
+                or sha256_hex(resolved_lamp["value"]) != sha256_hex(latest_resolution["value"])
+                or set(resolved_lamp["source_ids"]) != expected_lamp_sources
+                or resolved_lamp["updated_at"] != latest_resolution["observed_at"]
+            ):
+                return False, "checkpoint resolved conflict is inconsistent with its active lamp"
+
+    for lamp in lamps:
+        receipt_id = lamp.get("validation_receipt_id")
+        if lamp["type"] != "FACT" or receipt_id not in receipts:
+            continue
+        selection = _receipt_resolution_selection(
+            receipts[receipt_id], checkpoint["conflicts"], lamps
+        )
+        if selection == "OPEN":
+            return False, "checkpoint FACT is backed by an unresolved receipt conflict"
+        if selection == "NOT_SELECTED":
+            return False, "checkpoint FACT uses a receipt rejected by the retained resolution"
+
+    open_conflicts = [item for item in checkpoint["conflicts"] if item["status"] == "DISPUTED"]
+    open_conflict_keys = {(item["type"], item["subject"]) for item in open_conflicts}
+    if lamp_keys.intersection(open_conflict_keys):
+        return False, "checkpoint active lamp overlaps an open conflict"
+    disputed_receipt_subjects = {
+        item["subject"][len("validation.") :]
+        for item in open_conflicts
+        if item.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+        and item["subject"].startswith("validation.")
+    }
+    if any(("FACT", subject) in lamp_keys for subject in disputed_receipt_subjects):
+        return False, "checkpoint active FACT is backed by disputed validation receipts"
+    dispute_position = _receipt_dispute_position(checkpoint["conflicts"])
+    if dispute_position and checkpoint["city_position"] == dispute_position[0]:
+        eligible_position_sources.update(dispute_position[1])
+    for conflict in checkpoint["conflicts"]:
+        if (
+            conflict["status"] != "RESOLVED"
+            or conflict["classification"] != "CONTRADICTORY_VALIDATION_RECEIPTS"
+            or not conflict["material"]
+        ):
+            continue
+        resolved_lamp = lamp_by_key.get(("FACT", conflict["subject"]))
+        if (
+            resolved_lamp
+            and isinstance(resolved_lamp["value"], dict)
+            and resolved_lamp["value"].get("status") in {"PASS", "FAIL"}
+            and resolved_lamp["value"].get("summary") == checkpoint["city_position"]
+        ):
+            eligible_position_sources.update(resolved_lamp["source_ids"])
+    if "validation_receipt_pointers" in checkpoint:
+        evidenced_position = _select_evidenced_city_position(
+            checkpoint_receipts, checkpoint["conflicts"], lamps
+        )
+        if evidenced_position is not None and (
+            checkpoint["city_position"] != evidenced_position[0]
+            or sorted(checkpoint["city_position_source_ids"])
+            != sorted(set(evidenced_position[1]))
+        ):
+            return False, "checkpoint city position does not match deterministic evidence policy"
+    if not set(checkpoint["city_position_source_ids"]).issubset(eligible_position_sources):
+        return False, "checkpoint city position lacks trusted checkpoint or receipt provenance"
+    open_goal_conflicts = sorted(
+        (item for item in open_conflicts if item["type"] == "GOAL"),
+        key=lambda item: item["conflict_id"],
+    )
+    if len(goal_lamps) == 1 and not open_goal_conflicts:
+        goal_context = {
+            "subject": goal_lamps[0]["subject"],
+            "source_ids": list(goal_lamps[0]["source_ids"]),
+        }
+    elif not goal_lamps and len(open_goal_conflicts) == 1:
+        contested_goal = open_goal_conflicts[0]
+        goal_context = {
+            "subject": contested_goal["subject"],
+            "source_ids": sorted(
+                {source_id for claim in contested_goal["claims"] for source_id in claim["source_ids"]}
+            ),
+        }
+    else:
+        return False, "checkpoint must have exactly one active goal or one open material goal conflict"
 
     unknown_ids: set[str] = set()
     for unknown in checkpoint["unknowns"]:
         if (
             not isinstance(unknown, dict)
+            or set(unknown)
+            != {"unknown_id", "subject", "statement", "critical", "epistemic", "source_ids"}
             or not _text(unknown.get("unknown_id"))
             or not _text(unknown.get("subject"))
             or not _text(unknown.get("statement"))
@@ -280,9 +725,30 @@ def _checkpoint_is_semantically_valid(
             return False, "checkpoint contains duplicate unknowns"
         unknown_ids.add(unknown["unknown_id"])
 
+    recent_change_ids: set[str] = set()
     for change in checkpoint["recent_changes"]:
         if (
             not isinstance(change, dict)
+            or set(change)
+            != {
+                "change_id",
+                "sequence",
+                "object_type",
+                "content_type",
+                "subject",
+                "status",
+                "reason",
+                "source_ids",
+                "observed_at",
+                "operation",
+                "epistemic",
+                "authority",
+                "material",
+                "meaning",
+                "before",
+                "after",
+            }
+            or change.get("object_type") != "STATE_CHANGE"
             or not _text(change.get("change_id"))
             or not isinstance(change.get("sequence"), int)
             or isinstance(change.get("sequence"), bool)
@@ -293,10 +759,34 @@ def _checkpoint_is_semantically_valid(
             or "after" not in change
         ):
             return False, "checkpoint recent change is invalid"
+        if (
+            change["change_id"] in recent_change_ids
+            or change["sequence"] <= 0
+            or change["sequence"] > last_sequence
+        ):
+            return False, "checkpoint recent change identity or sequence is invalid"
+        recent_change_ids.add(change["change_id"])
+        try:
+            change_time = parse_instant(change.get("observed_at"), "CP-CHANGE-TIME", "change.observed_at")
+            if change_time > created_at:
+                return False, "checkpoint recent change is newer than the checkpoint"
+        except ContractError as exc:
+            return False, str(exc)
+        if any(
+            parse_instant(sources[source_id]["captured_at"], "CP-SOURCE-TIME", "source.captured_at")
+            > change_time
+            for source_id in change["source_ids"]
+        ):
+            return False, "checkpoint recent change source postdates the change"
 
     pointers: dict[str, dict[str, Any]] = {}
     for pointer in checkpoint["source_pointers"]:
-        if not isinstance(pointer, dict) or not _text(pointer.get("source_id")):
+        if (
+            not isinstance(pointer, dict)
+            or set(pointer)
+            != {"source_id", "kind", "locator", "captured_at", "authority", "content_sha256"}
+            or not _text(pointer.get("source_id"))
+        ):
             return False, "checkpoint source pointer is invalid"
         source_id = pointer["source_id"]
         if source_id in pointers or source_id not in sources:
@@ -307,6 +797,8 @@ def _checkpoint_is_semantically_valid(
                 return False, "checkpoint source pointer does not match package evidence"
         if pointer.get("content_sha256") != source["content_sha256"]:
             return False, "checkpoint source pointer hash does not match package evidence"
+        if parse_instant(source["captured_at"], "CP-SOURCE-TIME", "source.captured_at") > created_at:
+            return False, "checkpoint source pointer is newer than the checkpoint"
         pointers[source_id] = pointer
 
     referenced = set(checkpoint["city_position_source_ids"])
@@ -323,42 +815,43 @@ def _checkpoint_is_semantically_valid(
             referenced.update(claim["source_ids"])
     for unknown in checkpoint["unknowns"]:
         referenced.update(unknown["source_ids"])
+    for change in checkpoint["recent_changes"]:
+        referenced.update(change["source_ids"])
+    for conflict in checkpoint["conflicts"]:
+        for resolution in conflict.get("resolution_history", []):
+            referenced.update(resolution["source_ids"])
+    for pointer in receipt_pointers:
+        referenced.update(pointer["source_ids"])
     if not referenced.issubset(pointers):
         return False, "checkpoint source pointers do not cover material references"
-    expected_goal = (
-        {
-            "subject": goal_lamps[0]["subject"],
-            "source_ids": list(goal_lamps[0]["source_ids"]),
-        }
-        if goal_lamps
-        else None
-    )
-    if checkpoint["primary_next_step"].get("goal") != expected_goal:
+    if checkpoint["primary_next_step"].get("goal") != goal_context:
         return False, "checkpoint next step is not linked to the active goal"
     expected_constraints = [
-        {"subject": lamp["subject"], "source_ids": list(lamp["source_ids"])}
+        {
+            "subject": lamp["subject"],
+            "value": copy.deepcopy(lamp["value"]),
+            "source_ids": list(lamp["source_ids"]),
+        }
         for lamp in sorted((item for item in lamps if item["type"] == "CONSTRAINT"), key=lambda item: item["subject"])
     ]
     if checkpoint["primary_next_step"].get("constraints") != expected_constraints:
         return False, "checkpoint next step does not carry the active constraint context"
 
     checkpoint_sources = {source_id: sources[source_id] for source_id in pointers}
-    checkpoint_receipts = [
-        receipt
-        for receipt in receipts.values()
-        if receipt["validator_id"] in TRUSTED_VALIDATOR_IDS
-        and parse_instant(receipt["checked_at"], "CP-RECEIPT-TIME", "receipt.checked_at") <= created_at
-    ]
     checkpoint_conflicts = {item["conflict_id"]: item for item in checkpoint["conflicts"]}
     for expected_receipt_conflict in _receipt_conflicts(checkpoint_receipts):
-        if checkpoint_conflicts.get(expected_receipt_conflict["conflict_id"]) != expected_receipt_conflict:
+        actual_receipt_conflict = checkpoint_conflicts.get(expected_receipt_conflict["conflict_id"])
+        if actual_receipt_conflict is None or not _receipt_conflict_matches(
+            actual_receipt_conflict, expected_receipt_conflict
+        ):
             return False, "checkpoint does not preserve contradictory trusted receipts"
     expected_voltage, expected_step = _choose_next_step(
-        [item for item in checkpoint["conflicts"] if item["status"] == "DISPUTED"],
+        open_conflicts,
         checkpoint["unknowns"],
-        checkpoint_receipts,
+        _action_driving_receipts(checkpoint_receipts, checkpoint["conflicts"]),
         checkpoint_sources,
         lamps,
+        checkpoint["created_at"],
     )
     expected_step = _attach_orientation_context(expected_step, lamps)
     if checkpoint["voltage"] != expected_voltage or checkpoint["primary_next_step"] != expected_step:
@@ -373,16 +866,102 @@ def _select_checkpoint(
     receipts: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any], str, list[dict[str, str]]]:
     checkpoints = require_mapping(package.get("checkpoints"), "PKG-010", "package.checkpoints")
+    require_closed_keys(
+        checkpoints,
+        {"primary", "fallbacks"},
+        {"primary", "fallbacks"},
+        "PKG-010",
+        "package.checkpoints",
+    )
     candidates: list[tuple[str, Any]] = [("PRIMARY", checkpoints.get("primary"))]
-    candidates.extend((f"FALLBACK_{index + 1}", value) for index, value in enumerate(checkpoints.get("fallbacks", [])))
+    fallbacks = require_list(checkpoints.get("fallbacks"), "PKG-010", "package.checkpoints.fallbacks")
+    candidates.extend((f"FALLBACK_{index + 1}", value) for index, value in enumerate(fallbacks))
+    candidate_times: dict[str, Any] = {}
+    reserved_receipt_hashes: dict[str, str] = {}
+    for label, checkpoint in candidates:
+        if not isinstance(checkpoint, dict):
+            continue
+        try:
+            candidate_times[label] = parse_instant(
+                checkpoint.get("created_at"), "CP-ROLLBACK-TIME", "checkpoint.created_at"
+            )
+        except ContractError:
+            pass
+        pointers = checkpoint.get("validation_receipt_pointers")
+        if not isinstance(pointers, list):
+            continue
+        for pointer in pointers:
+            if (
+                not isinstance(pointer, dict)
+                or not _text(pointer.get("receipt_id"))
+                or not isinstance(pointer.get("receipt_sha256"), str)
+                or len(pointer["receipt_sha256"]) != 64
+                or any(character not in "0123456789abcdef" for character in pointer["receipt_sha256"])
+            ):
+                continue
+            receipt_id = pointer["receipt_id"]
+            prior_hash = reserved_receipt_hashes.get(receipt_id)
+            if prior_hash is not None and prior_hash != pointer["receipt_sha256"]:
+                raise OrientationError(
+                    f"[RECEIPT-LEDGER-CONFLICT] checkpoints disagree about immutable receipt {receipt_id}"
+                )
+            reserved_receipt_hashes[receipt_id] = pointer["receipt_sha256"]
+    for receipt_id, receipt in receipts.items():
+        reserved_hash = reserved_receipt_hashes.get(receipt_id)
+        if reserved_hash is not None and reserved_hash != sha256_hex(receipt):
+            raise OrientationError(
+                f"[RECEIPT-ID-REUSE] {receipt_id} changed after checkpointing"
+            )
     errors: list[dict[str, str]] = []
+    valid_candidates: list[tuple[Any, bool, str, dict[str, Any]]] = []
     for label, checkpoint in candidates:
         valid, reason = _checkpoint_is_semantically_valid(checkpoint, as_of, sources, receipts)
         if valid:
-            status = "PRIMARY_VALID" if label == "PRIMARY" else "FALLBACK_VALID_AFTER_CORRUPTION"
-            return copy.deepcopy(checkpoint), status, errors
-        errors.append({"candidate": label, "reason": reason})
-    raise OrientationError("[CP-RECOVERY] no valid checkpoint or fallback is available")
+            valid_candidates.append(
+                (
+                    parse_instant(checkpoint["created_at"], "CP-SELECT-TIME", "checkpoint.created_at"),
+                    label == "PRIMARY",
+                    label,
+                    checkpoint,
+                )
+            )
+        else:
+            if reason.startswith("RECEIPT_ID_REUSE:"):
+                raise OrientationError(f"[RECEIPT-ID-REUSE] {reason.split(':', 1)[1]}")
+            errors.append({"candidate": label, "reason": reason})
+    if not valid_candidates:
+        raise OrientationError("[CP-RECOVERY] no valid checkpoint or fallback is available")
+    _, is_primary, label, selected = max(
+        valid_candidates,
+        key=lambda item: (item[0], item[3]["last_sequence"], item[1], item[3]["checkpoint_id"]),
+    )
+    selected_time = parse_instant(selected["created_at"], "CP-SELECT-TIME", "checkpoint.created_at")
+    valid_labels = {item[2] for item in valid_candidates}
+    lost_history_boundaries = [
+        candidate_time
+        for candidate_label, candidate_time in candidate_times.items()
+        if candidate_label not in valid_labels and candidate_time > selected_time
+    ]
+    if lost_history_boundaries:
+        lost_history_boundary = max(lost_history_boundaries)
+        for receipt in receipts.values():
+            if (
+                receipt["receipt_id"] not in reserved_receipt_hashes
+                and parse_instant(receipt["checked_at"], "RECEIPT-TIME", "receipt.checked_at")
+                <= lost_history_boundary
+            ):
+                raise OrientationError(
+                    "[RECEIPT-LINEAGE-UNKNOWN] a newer invalid checkpoint may contain "
+                    f"receipt {receipt['receipt_id']}; omit or restore the checkpoint ledger before replay"
+                )
+    primary_valid = any(item[2] == "PRIMARY" for item in valid_candidates)
+    if is_primary:
+        status = "PRIMARY_VALID"
+    elif primary_valid:
+        status = "LATEST_VALID_FALLBACK_SELECTED"
+    else:
+        status = "FALLBACK_VALID_AFTER_CORRUPTION"
+    return copy.deepcopy(selected), status, errors
 
 
 def _disposition(change: dict[str, Any], status: str, reason: str) -> dict[str, Any]:
@@ -439,13 +1018,21 @@ def _policy_rejection(
     change: dict[str, Any],
     sources: dict[str, dict[str, Any]],
     receipts: dict[str, dict[str, Any]],
+    conflicts: Iterable[dict[str, Any]],
+    active_lamps: Iterable[dict[str, Any]],
     base_checkpoint_id: str,
     as_of: str,
 ) -> str | None:
     if not change["source_ids"] or any(source_id not in sources for source_id in change["source_ids"]):
         return "SOURCE_UNKNOWN"
-    if parse_instant(change["observed_at"], "CHG-TIME", "change.observed_at") > parse_instant(as_of, "PKG-TIME", "package.as_of"):
+    observed_at = parse_instant(change["observed_at"], "CHG-TIME", "change.observed_at")
+    if observed_at > parse_instant(as_of, "PKG-TIME", "package.as_of"):
         return "FUTURE_EVIDENCE_REJECTED"
+    if any(
+        parse_instant(sources[source_id]["captured_at"], "SRC-TIME", "source.captured_at") > observed_at
+        for source_id in change["source_ids"]
+    ):
+        return "SOURCE_POSTDATES_CHANGE"
     expected = change.get("expected_checkpoint_id")
     if not expected:
         return "MISSING_EXPECTED_CHECKPOINT"
@@ -453,11 +1040,21 @@ def _policy_rejection(
         return "STALE_STATE"
     if change["operation"] == "MOVE":
         return "MOVE_NOT_IMPLEMENTED_IN_MVP"
+    if change["content_type"] == "GOAL" and not change["material"]:
+        return "GOAL_MUST_BE_MATERIAL"
+    if change["content_type"] == "CONSTRAINT" and not _constraint_value_is_valid(change["value"]):
+        return "UNSUPPORTED_CONSTRAINT_POLICY"
     referenced_receipt = receipts.get(change.get("validation_receipt_id", ""))
     if change.get("validation_receipt_id") and referenced_receipt is None:
         return "UNKNOWN_VALIDATION_RECEIPT"
+    if change.get("validation_receipt_id") and change["content_type"] != "FACT":
+        return "NON_FACT_RECEIPT_NOT_ALLOWED"
     if referenced_receipt is not None and referenced_receipt["subject"] != change["subject"]:
         return "RECEIPT_SUBJECT_MISMATCH"
+    if referenced_receipt is not None and parse_instant(
+        referenced_receipt["checked_at"], "RECEIPT-TIME", "receipt.checked_at"
+    ) > observed_at:
+        return "RECEIPT_POSTDATES_CHANGE"
     if change["content_type"] in {"GOAL", "DECISION", "CONSTRAINT"} or change["operation"] == "RESOLVE":
         if change["authority"] != "AUTHORIZED":
             return "UNAUTHORIZED_OVERRIDE"
@@ -488,6 +1085,11 @@ def _policy_rejection(
             return "MISSING_VALIDATION_RECEIPT"
         if receipt["validator_id"] not in TRUSTED_VALIDATOR_IDS:
             return "UNTRUSTED_VALIDATOR_RECEIPT"
+        receipt_selection = _receipt_resolution_selection(receipt, conflicts, active_lamps)
+        if receipt_selection == "OPEN":
+            return "RECEIPT_CONFLICT_BLOCKS_FACT"
+        if receipt_selection == "NOT_SELECTED":
+            return "RECEIPT_RESOLUTION_DOES_NOT_SELECT_PROOF"
         if change["operation"] in {"DEACTIVATE", "INVALIDATE"}:
             if receipt["status"] != "FAIL" or not receipt.get("assertion_sha256"):
                 return "RECEIPT_NOT_FAIL"
@@ -505,8 +1107,26 @@ def _open_conflict(
     existing: dict[str, Any],
     change: dict[str, Any],
     receipts: dict[str, dict[str, Any]],
+    prior_conflict: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     conflict_id = f"conflict:{change['content_type'].lower()}:{change['subject']}"
+    new_claim = {
+        "claim_id": change["change_id"],
+        "value": copy.deepcopy(change["value"]),
+        "epistemic": "DISPUTED",
+        "asserted_epistemic": change["epistemic"],
+        "authority": change["authority"],
+        "source_ids": _evidence_source_ids(change, receipts),
+        "observed_at": change["observed_at"],
+    }
+    if prior_conflict is not None:
+        reopened = copy.deepcopy(prior_conflict)
+        reopened["material"] = bool(reopened["material"] or existing.get("material") or change["material"])
+        reopened["status"] = "DISPUTED"
+        reopened["classification"] = "CONTRADICTION_REOPENED"
+        reopened["reason"] = "A new competing claim reopened a previously resolved conflict; resolution history is retained."
+        reopened["claims"].append(new_claim)
+        return reopened
     return {
         "conflict_id": conflict_id,
         "type": change["content_type"],
@@ -525,25 +1145,32 @@ def _open_conflict(
                 "source_ids": list(existing["source_ids"]),
                 "observed_at": existing["updated_at"],
             },
-            {
-                "claim_id": change["change_id"],
-                "value": copy.deepcopy(change["value"]),
-                "epistemic": "DISPUTED",
-                "asserted_epistemic": change["epistemic"],
-                "authority": change["authority"],
-                "source_ids": _evidence_source_ids(change, receipts),
-                "observed_at": change["observed_at"],
-            },
+            new_claim,
         ],
     }
+
+
+def _latest_conflict_instant(conflict: dict[str, Any]) -> Any:
+    instants = [
+        parse_instant(claim["observed_at"], "CONFLICT-TIME", "claim.observed_at")
+        for claim in conflict["claims"]
+    ]
+    instants.extend(
+        parse_instant(item["observed_at"], "CONFLICT-TIME", "resolution.observed_at")
+        for item in conflict.get("resolution_history", [])
+    )
+    return max(instants)
 
 
 def _critical_unknowns(
     receipts: Iterable[dict[str, Any]],
     existing: list[dict[str, Any]],
     active_lamps: Iterable[dict[str, Any]],
+    conflicts: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     unknowns = {item["unknown_id"]: copy.deepcopy(item) for item in existing}
+    conflict_by_id = {item["conflict_id"]: item for item in conflicts}
+    lamps = list(active_lamps)
     for unknown_id in [item for item in unknowns if item.startswith("unknown:lamp:")]:
         unknowns.pop(unknown_id)
     receipt_groups: dict[str, list[dict[str, Any]]] = {}
@@ -556,19 +1183,64 @@ def _critical_unknowns(
         claim_identities = {_receipt_claim_identity(receipt) for receipt in group}
         statuses = {receipt["status"] for receipt in group}
         source_ids = sorted({source_id for receipt in group for source_id in receipt["source_ids"]})
-        if len(claim_identities) > 1:
+        material = any(receipt["material"] for receipt in group)
+        receipt_conflict = conflict_by_id.get(f"conflict:fact:validation.{subject}")
+        if receipt_conflict is not None:
+            source_ids = sorted(
+                {
+                    source_id
+                    for claim in receipt_conflict["claims"]
+                    for source_id in claim["source_ids"]
+                }
+            )
+            material = bool(receipt_conflict["material"])
+        if receipt_conflict is not None or len(claim_identities) > 1:
+            if receipt_conflict and receipt_conflict["status"] == "RESOLVED":
+                resolved_lamp = next(
+                    (
+                        lamp
+                        for lamp in lamps
+                        if lamp["type"] == "FACT" and lamp["subject"] == f"validation.{subject}"
+                    ),
+                    None,
+                )
+                selected_status = (
+                    resolved_lamp["value"].get("status")
+                    if resolved_lamp and isinstance(resolved_lamp.get("value"), dict)
+                    else None
+                )
+                if selected_status == "FAIL" and material:
+                    unknown_id = f"unknown:failure-cause:{subject}"
+                    unknowns[unknown_id] = {
+                        "unknown_id": unknown_id,
+                        "subject": f"{subject}.failure_cause",
+                        "statement": f"Root cause and corrective proof for {subject} remain UNKNOWN after failed validation.",
+                        "critical": True,
+                        "epistemic": "UNKNOWN",
+                        "source_ids": source_ids,
+                    }
+                elif selected_status == "UNKNOWN" and material:
+                    unknown_id = f"unknown:validation:{subject}"
+                    unknowns[unknown_id] = {
+                        "unknown_id": unknown_id,
+                        "subject": subject,
+                        "statement": f"Validation status for {subject} remains UNKNOWN.",
+                        "critical": True,
+                        "epistemic": "UNKNOWN",
+                        "source_ids": source_ids,
+                    }
+                continue
             unknown_id = f"unknown:receipt-conflict:{subject}"
             unknowns[unknown_id] = {
                 "unknown_id": unknown_id,
                 "subject": f"validation.{subject}",
                 "statement": f"Trusted validation receipts for {subject} disagree; the supported status remains UNKNOWN.",
-                "critical": True,
+                "critical": material,
                 "epistemic": "UNKNOWN",
                 "source_ids": source_ids,
             }
             continue
         status = next(iter(statuses))
-        material = any(receipt["material"] for receipt in group)
         if status == "FAIL" and material:
             unknown_id = f"unknown:failure-cause:{subject}"
             unknowns[unknown_id] = {
@@ -589,7 +1261,7 @@ def _critical_unknowns(
                 "epistemic": "UNKNOWN",
                 "source_ids": source_ids,
             }
-    for lamp in active_lamps:
+    for lamp in lamps:
         if lamp["type"] != "UNKNOWN":
             continue
         value = lamp["value"] if isinstance(lamp["value"], str) else canonical_json_bytes(lamp["value"]).decode("utf-8")
@@ -622,26 +1294,278 @@ def _receipt_conflicts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any
                 "material": any(receipt["material"] for receipt in group),
                 "status": "DISPUTED",
                 "classification": "CONTRADICTORY_VALIDATION_RECEIPTS",
-                "reason": f"Trusted validation receipts for {subject} report incompatible statuses.",
+                "reason": f"Trusted validation receipts for {subject} report incompatible claims.",
                 "claims": [
-                    {
-                        "claim_id": receipt["receipt_id"],
-                        "value": {
-                            "status": receipt["status"],
-                            "summary": receipt["summary"],
-                            "assertion_sha256": receipt["assertion_sha256"],
-                        },
-                        "epistemic": "DISPUTED",
-                        "asserted_epistemic": "VERIFIED",
-                        "authority": "NOT_APPLICABLE",
-                        "source_ids": list(receipt["source_ids"]),
-                        "observed_at": receipt["checked_at"],
-                    }
+                    _receipt_conflict_claim(receipt)
                     for receipt in sorted(group, key=lambda item: item["receipt_id"])
                 ],
             }
         )
     return conflicts
+
+
+def _single_receipt_conflict_update(receipt: dict[str, Any]) -> dict[str, Any]:
+    conflict_subject = f"validation.{receipt['subject']}"
+    return {
+        "conflict_id": f"conflict:fact:{conflict_subject}",
+        "type": "FACT",
+        "subject": conflict_subject,
+        "material": receipt["material"],
+        "status": "DISPUTED",
+        "classification": "CONTRADICTORY_VALIDATION_RECEIPTS",
+        "reason": f"Trusted validation receipts for {receipt['subject']} report incompatible claims.",
+        "claims": [_receipt_conflict_claim(receipt)],
+    }
+
+
+def _merge_receipt_conflict(
+    existing: dict[str, Any] | None,
+    expected: dict[str, Any],
+) -> dict[str, Any]:
+    if existing is None:
+        return copy.deepcopy(expected)
+    if (
+        existing.get("conflict_id") != expected["conflict_id"]
+        or existing.get("classification") != "CONTRADICTORY_VALIDATION_RECEIPTS"
+    ):
+        raise OrientationError(
+            f"[RECEIPT-CONFLICT-ID] {expected['conflict_id']} collides with a non-receipt conflict"
+        )
+    merged = copy.deepcopy(existing)
+    claims_by_id = {claim["claim_id"]: claim for claim in merged["claims"]}
+    known_value_hashes = {sha256_hex(claim["value"]) for claim in merged["claims"]}
+    added_novel_value = False
+    novel_claims: list[dict[str, Any]] = []
+    for claim in expected["claims"]:
+        prior = claims_by_id.get(claim["claim_id"])
+        if prior is not None and sha256_hex(prior) != sha256_hex(claim):
+            raise OrientationError(
+                f"[RECEIPT-ID-REUSE] receipt {claim['claim_id']} changed after checkpointing"
+            )
+        if prior is None:
+            claims_by_id[claim["claim_id"]] = copy.deepcopy(claim)
+            claim_value_hash = sha256_hex(claim["value"])
+            if claim_value_hash not in known_value_hashes:
+                added_novel_value = True
+                known_value_hashes.add(claim_value_hash)
+                novel_claims.append(claim)
+    merged["claims"] = sorted(claims_by_id.values(), key=lambda item: item["claim_id"])
+    merged["material"] = bool(merged["material"] or expected["material"])
+    merged["classification"] = expected["classification"]
+    merged["reason"] = expected["reason"]
+    if added_novel_value and merged["status"] == "RESOLVED":
+        latest_resolution = merged.get("resolution_history", [])[-1]
+        resolution_time = parse_instant(
+            latest_resolution["observed_at"], "CONFLICT-TIME", "resolution.observed_at"
+        )
+        if any(
+            parse_instant(claim["observed_at"], "CONFLICT-TIME", "claim.observed_at")
+            <= resolution_time
+            for claim in novel_claims
+        ):
+            raise OrientationError(
+                "[STALE-RECEIPT-CLAIM] a newly supplied competing receipt predates the retained resolution"
+            )
+        merged["status"] = "DISPUTED"
+    return merged
+
+
+def _receipt_conflict_matches(
+    actual: dict[str, Any],
+    expected: dict[str, Any],
+) -> bool:
+    if any(
+        actual.get(field) != expected[field]
+        for field in ("conflict_id", "type", "subject", "classification", "reason")
+    ):
+        return False
+    if expected["material"] and not actual.get("material"):
+        return False
+    actual_claims = {claim["claim_id"]: sha256_hex(claim) for claim in actual.get("claims", [])}
+    return all(actual_claims.get(claim["claim_id"]) == sha256_hex(claim) for claim in expected["claims"])
+
+
+def _receipt_dispute_position(
+    conflicts: Iterable[dict[str, Any]],
+) -> tuple[str, list[str]] | None:
+    candidates = sorted(
+        (
+            conflict
+            for conflict in conflicts
+            if conflict.get("status") == "DISPUTED"
+            and conflict.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+            and conflict.get("material")
+        ),
+        key=lambda item: item["conflict_id"],
+    )
+    if not candidates:
+        return None
+    conflict = candidates[0]
+    subject = (
+        conflict["subject"][len("validation.") :]
+        if conflict["subject"].startswith("validation.")
+        else conflict["subject"]
+    )
+    source_ids = sorted(
+        {source_id for claim in conflict["claims"] for source_id in claim["source_ids"]}
+    )
+    return (
+        f"Current position is UNKNOWN because trusted validation receipts for {subject} disagree.",
+        source_ids,
+    )
+
+
+def _receipt_conflict_root_subject(conflict: dict[str, Any]) -> str | None:
+    subject = conflict.get("subject")
+    if (
+        conflict.get("classification") != "CONTRADICTORY_VALIDATION_RECEIPTS"
+        or not isinstance(subject, str)
+        or not subject.startswith("validation.")
+    ):
+        return None
+    return subject[len("validation.") :]
+
+
+def _action_driving_receipts(
+    receipts: Iterable[dict[str, Any]],
+    conflicts: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Exclude historical sides of a receipt conflict from policy selection.
+
+    The claims stay retained in the conflict. While it is open, the conflict
+    itself drives the corrective step; after an AUTHORIZED resolution, the
+    selected FACT lamp drives state. Raw opposing receipts never become active
+    again merely because they remain in the evidence package.
+    """
+
+    conflict_roots = {
+        root
+        for conflict in conflicts
+        if (root := _receipt_conflict_root_subject(conflict)) is not None
+    }
+    return [receipt for receipt in receipts if receipt["subject"] not in conflict_roots]
+
+
+def _resolved_receipt_positions(
+    conflicts: Iterable[dict[str, Any]],
+    active_lamps: Iterable[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], set[str]]:
+    state = {(lamp["type"], lamp["subject"]): lamp for lamp in active_lamps}
+    positions: list[dict[str, Any]] = []
+    proof_receipt_ids: set[str] = set()
+    for conflict in conflicts:
+        if (
+            conflict.get("status") != "RESOLVED"
+            or conflict.get("classification") != "CONTRADICTORY_VALIDATION_RECEIPTS"
+            or not conflict.get("material")
+        ):
+            continue
+        resolved_lamp = state.get(("FACT", conflict["subject"]))
+        if resolved_lamp is None or not isinstance(resolved_lamp.get("value"), dict):
+            continue
+        status = resolved_lamp["value"].get("status")
+        summary = resolved_lamp["value"].get("summary")
+        if status not in {"PASS", "FAIL"} or not _text(summary):
+            continue
+        receipt_id = resolved_lamp.get("validation_receipt_id")
+        if _text(receipt_id):
+            proof_receipt_ids.add(receipt_id)
+        positions.append(
+            {
+                "receipt_id": f"resolution:{conflict['conflict_id']}",
+                "status": status,
+                "summary": summary,
+                "source_ids": list(resolved_lamp["source_ids"]),
+            }
+        )
+    return sorted(positions, key=lambda item: item["receipt_id"]), proof_receipt_ids
+
+
+def _select_evidenced_city_position(
+    receipts: Iterable[dict[str, Any]],
+    conflicts: Iterable[dict[str, Any]],
+    active_lamps: Iterable[dict[str, Any]],
+) -> tuple[str, list[str]] | None:
+    retained_conflicts = list(conflicts)
+    resolved_positions, proof_receipt_ids = _resolved_receipt_positions(
+        retained_conflicts, active_lamps
+    )
+    position_receipts = [
+        receipt
+        for receipt in _action_driving_receipts(receipts, retained_conflicts)
+        if receipt["receipt_id"] not in proof_receipt_ids
+    ]
+    raw_failed = sorted(
+        (
+            receipt
+            for receipt in position_receipts
+            if receipt["status"] == "FAIL" and receipt["material"]
+        ),
+        key=lambda item: item["receipt_id"],
+    )
+    resolved_failed = [item for item in resolved_positions if item["status"] == "FAIL"]
+    if resolved_failed:
+        item = resolved_failed[0]
+        return item["summary"], list(item["source_ids"])
+    if raw_failed:
+        item = raw_failed[0]
+        return item["summary"], list(item["source_ids"])
+    dispute_position = _receipt_dispute_position(retained_conflicts)
+    if dispute_position:
+        return dispute_position
+    resolved_passed = [item for item in resolved_positions if item["status"] == "PASS"]
+    if resolved_passed:
+        item = resolved_passed[0]
+        return item["summary"], list(item["source_ids"])
+    raw_passed = sorted(
+        (
+            receipt
+            for receipt in position_receipts
+            if receipt["status"] == "PASS" and receipt["material"]
+        ),
+        key=lambda item: item["receipt_id"],
+    )
+    if raw_passed:
+        item = raw_passed[0]
+        return item["summary"], list(item["source_ids"])
+    return None
+
+
+def _respect_constraints(
+    voltage: str,
+    step: dict[str, Any],
+    active_lamps: Iterable[dict[str, Any]],
+) -> tuple[str, dict[str, Any]]:
+    blockers = sorted(
+        (
+            lamp
+            for lamp in active_lamps
+            if lamp["type"] == "CONSTRAINT" and _constraint_forbids(lamp["value"], step["policy_class"])
+        ),
+        key=lambda item: item["subject"],
+    )
+    if not blockers:
+        return voltage, step
+    constraint = blockers[0]
+    blocked_class = step["policy_class"]
+    corrective_step = {
+        "action_id": f"constraint:{constraint['subject']}:{blocked_class.lower()}",
+        "instruction": (
+            f"Record an AUTHORIZED revision of {constraint['subject']} or select an action "
+            f"that permits {blocked_class}."
+        ),
+        "reason": f"The active constraint explicitly forbids policy class {blocked_class}.",
+        "policy_class": "CORRECTIVE_CONSTRAINT_RESOLUTION",
+        "source_ids": list(constraint["source_ids"]),
+        "success_condition": {
+            "type": "constraint_policy_allows",
+            "subject": constraint["subject"],
+            "policy_class": blocked_class,
+        },
+    }
+    if step.get("goal"):
+        corrective_step["goal"] = copy.deepcopy(step["goal"])
+    return "BROKEN", corrective_step
 
 
 def _choose_next_step(
@@ -650,12 +1574,15 @@ def _choose_next_step(
     receipts: list[dict[str, Any]],
     sources: dict[str, dict[str, Any]],
     active_lamps: Iterable[dict[str, Any]],
+    as_of: str,
 ) -> tuple[str, dict[str, Any]]:
+    del sources
+    lamps = list(active_lamps)
     material_conflicts = [item for item in conflicts if item["status"] == "DISPUTED" and item["material"]]
     if material_conflicts:
         conflict = sorted(material_conflicts, key=lambda item: item["conflict_id"])[0]
         source_ids = sorted({source_id for claim in conflict["claims"] for source_id in claim["source_ids"]})
-        return "BLOCKED", {
+        step = {
             "action_id": f"resolve:{conflict['subject']}",
             "instruction": f"Record one AUTHORIZED resolution for {conflict['subject']} that explicitly supersedes the competing claims.",
             "reason": "The conflict is material; disputed claims cannot drive execution.",
@@ -664,57 +1591,73 @@ def _choose_next_step(
             "success_condition": {
                 "type": "conflict_resolved",
                 "subject": conflict["subject"],
+                "content_type": conflict["type"],
                 "required_authority": "AUTHORIZED",
             },
         }
+        if conflict["type"] == "GOAL":
+            step["goal"] = {"subject": conflict["subject"], "source_ids": source_ids}
+        return _respect_constraints("BLOCKED", step, lamps)
     critical_unknowns = [item for item in unknowns if item.get("critical")]
     if critical_unknowns:
         unknown = sorted(critical_unknowns, key=lambda item: item["unknown_id"])[0]
-        return "UNKNOWN", {
+        return _respect_constraints("UNKNOWN", {
             "action_id": f"evidence:{unknown['subject']}",
             "instruction": f"Collect and validate source evidence that resolves {unknown['subject']}.",
             "reason": "A critical unknown prevents a supported action.",
             "policy_class": "CORRECTIVE_EVIDENCE_COLLECTION",
             "source_ids": list(unknown["source_ids"]),
             "success_condition": {"type": "unknown_resolved", "subject": unknown["subject"]},
-        }
+        }, lamps)
     material_risks = sorted(
-        (lamp for lamp in active_lamps if lamp["type"] == "RISK" and lamp["material"]),
+        (lamp for lamp in lamps if lamp["type"] == "RISK" and lamp["material"]),
         key=lambda item: item["subject"],
     )
     if material_risks:
         risk = material_risks[0]
-        return "WEAK", {
+        return _respect_constraints("WEAK", {
             "action_id": f"mitigate:{risk['subject']}",
             "instruction": f"Record and validate one mitigation for {risk['subject']} before goal execution.",
             "reason": "An active material risk makes direct execution unsafe.",
             "policy_class": "CORRECTIVE_RISK_MITIGATION",
             "source_ids": list(risk["source_ids"]),
             "success_condition": {"type": "risk_mitigated", "subject": risk["subject"]},
-        }
-    failed = [receipt for receipt in receipts if receipt["status"] == "FAIL"]
+        }, lamps)
+    failed = [receipt for receipt in receipts if receipt["status"] == "FAIL" and receipt["material"]]
     if failed:
         receipt = sorted(failed, key=lambda item: item["receipt_id"])[0]
-        return "BLOCKED", {
+        return _respect_constraints("BLOCKED", {
             "action_id": f"validate:{receipt['subject']}",
             "instruction": f"Fix the evidenced failure and rerun validation for {receipt['subject']}.",
             "reason": receipt["summary"],
             "policy_class": "CORRECTIVE_VALIDATION",
             "source_ids": list(receipt["source_ids"]),
-            "success_condition": {"type": "validation_pass", "subject": receipt["subject"]},
-        }
-    goal_lamps = sorted((lamp for lamp in active_lamps if lamp["type"] == "GOAL"), key=lambda item: item["subject"])
-    goal_sources = list(goal_lamps[0]["source_ids"]) if goal_lamps else sorted(
-        source_id for source_id, source in sources.items() if source["authority"] == "AUTHORIZED"
-    )[:1]
-    return "FLOWING", {
+            "success_condition": {
+                "type": "validation_pass",
+                "status": "PASS",
+                "subject": receipt["subject"],
+                "checked_after": receipt["checked_at"],
+                "assertion_sha256": receipt["assertion_sha256"],
+            },
+        }, lamps)
+    goal_lamps = [lamp for lamp in lamps if lamp["type"] == "GOAL"]
+    if len(goal_lamps) != 1:
+        raise OrientationError("[GOAL-001] orientation requires exactly one active goal")
+    goal = goal_lamps[0]
+    return _respect_constraints("FLOWING", {
         "action_id": "validate:current-goal",
         "instruction": "Execute the next goal-aligned validation and retain its receipt.",
         "reason": "No material conflict or critical unknown currently blocks the goal.",
         "policy_class": "GOAL_VALIDATION",
-        "source_ids": goal_sources,
-        "success_condition": {"type": "validation_receipt_retained", "status": "PASS"},
-    }
+        "source_ids": list(goal["source_ids"]),
+        "success_condition": {
+            "type": "validation_receipt_retained",
+            "status": "PASS",
+            "subject": goal["subject"],
+            "checked_after": as_of,
+            "assertion_sha256": _assertion_hash(goal["subject"], goal["value"]),
+        },
+    }, lamps)
 
 
 def _attach_orientation_context(next_step: dict[str, Any], active_lamps: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -728,7 +1671,12 @@ def _attach_orientation_context(next_step: dict[str, Any], active_lamps: Iterabl
             "source_ids": list(goals[0]["source_ids"]),
         }
     contextualized["constraints"] = [
-        {"subject": item["subject"], "source_ids": list(item["source_ids"])} for item in constraints
+        {
+            "subject": item["subject"],
+            "value": copy.deepcopy(item["value"]),
+            "source_ids": list(item["source_ids"]),
+        }
+        for item in constraints
     ]
     return contextualized
 
@@ -746,6 +1694,16 @@ def _source_pointers(source_ids: Iterable[str], sources: dict[str, dict[str, Any
         for source_id in sorted(set(source_ids))
         if source_id in sources
     ]
+
+
+def _validation_receipt_pointer(receipt: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "receipt_id": receipt["receipt_id"],
+        "receipt_sha256": sha256_hex(receipt),
+        "subject": receipt["subject"],
+        "checked_at": receipt["checked_at"],
+        "source_ids": list(receipt["source_ids"]),
+    }
 
 
 def _derive_recovery_card(checkpoint: dict[str, Any]) -> dict[str, Any]:
@@ -777,6 +1735,16 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
 
     try:
         package = require_mapping(copy.deepcopy(raw_package), "PKG-001", "package")
+        package_fields = {
+            "schema_version",
+            "package_id",
+            "as_of",
+            "sources",
+            "validation_receipts",
+            "checkpoints",
+            "changes",
+        }
+        require_closed_keys(package, package_fields, package_fields, "PKG-001", "package")
         require(package.get("schema_version") == SCHEMA_VERSION, "PKG-002", "package schema must be 0.3C")
         package_id = require_text(package.get("package_id"), "PKG-003", "package_id")
         as_of = require_text(package.get("as_of"), "PKG-004", "package.as_of")
@@ -807,10 +1775,91 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
 
         base, recovery_status, checkpoint_errors = _select_checkpoint(package, as_of, sources, receipts)
         base_checkpoint_id = base["checkpoint_id"]
+        receipt_pointer_by_id = {
+            pointer["receipt_id"]: copy.deepcopy(pointer)
+            for pointer in base.get("validation_receipt_pointers", [])
+        }
+        for receipt in receipt_list:
+            pointer = _validation_receipt_pointer(receipt)
+            prior = receipt_pointer_by_id.get(receipt["receipt_id"])
+            if prior is not None and prior != pointer:
+                raise OrientationError(
+                    f"[RECEIPT-ID-REUSE] {receipt['receipt_id']} changed after checkpointing"
+                )
+            receipt_pointer_by_id[receipt["receipt_id"]] = pointer
+        validation_receipt_pointers = sorted(
+            receipt_pointer_by_id.values(), key=lambda item: item["receipt_id"]
+        )
         state = {(lamp["type"], lamp["subject"]): copy.deepcopy(lamp) for lamp in base["active_lamps"]}
         conflicts = {item["conflict_id"]: copy.deepcopy(item) for item in base["conflicts"]}
+        historical_event_ids = {item["change_id"] for item in base["recent_changes"]}
+        # An active lamp becomes the first preserved claim if a later update opens
+        # a conflict. Reserve its deterministic identity so an incoming event
+        # cannot create two claims with the same ID.
+        historical_event_ids.update(lamp["lamp_id"] for lamp in base["active_lamps"])
+        for conflict in base["conflicts"]:
+            historical_event_ids.update(claim["claim_id"] for claim in conflict["claims"])
+            historical_event_ids.update(
+                resolution["change_id"] for resolution in conflict.get("resolution_history", [])
+            )
+        touched_receipt_conflict_ids: set[str] = set()
         for receipt_conflict in _receipt_conflicts(effective_receipts):
-            conflicts[receipt_conflict["conflict_id"]] = receipt_conflict
+            conflict_id = receipt_conflict["conflict_id"]
+            conflicts[conflict_id] = _merge_receipt_conflict(
+                conflicts.get(conflict_id), receipt_conflict
+            )
+            touched_receipt_conflict_ids.add(conflict_id)
+        # A compact checkpoint may preserve the earlier sides without requiring
+        # the raw receipts to be loaded again. Merge each trusted tail receipt
+        # directly into that retained conflict so new meaning cannot disappear.
+        for receipt in effective_receipts:
+            conflict_id = f"conflict:fact:validation.{receipt['subject']}"
+            if conflict_id not in conflicts:
+                continue
+            conflicts[conflict_id] = _merge_receipt_conflict(
+                conflicts[conflict_id], _single_receipt_conflict_update(receipt)
+            )
+            touched_receipt_conflict_ids.add(conflict_id)
+        for conflict_id in sorted(touched_receipt_conflict_ids):
+            projected_conflict = conflicts[conflict_id]
+            if projected_conflict["status"] == "DISPUTED":
+                # A later receipt reopens the validation dispute and suspends
+                # the prior resolution lamp until a new explicit resolution.
+                state.pop(("FACT", projected_conflict["subject"]), None)
+                fact_subject = projected_conflict["subject"][len("validation.") :]
+                suspended_fact = state.pop(("FACT", fact_subject), None)
+                if suspended_fact is not None:
+                    suspended_claim = {
+                        "claim_id": suspended_fact["lamp_id"],
+                        "value": {
+                            "fact_subject": suspended_fact["subject"],
+                            "fact_value": copy.deepcopy(suspended_fact["value"]),
+                            "validation_receipt_id": suspended_fact.get("validation_receipt_id", ""),
+                        },
+                        "epistemic": "DISPUTED",
+                        "asserted_epistemic": suspended_fact["epistemic"],
+                        "authority": suspended_fact["authority"],
+                        "source_ids": list(suspended_fact["source_ids"]),
+                        "observed_at": suspended_fact["updated_at"],
+                    }
+                    prior_claim = next(
+                        (
+                            claim
+                            for claim in projected_conflict["claims"]
+                            if claim["claim_id"] == suspended_claim["claim_id"]
+                        ),
+                        None,
+                    )
+                    if prior_claim is not None and sha256_hex(prior_claim) != sha256_hex(suspended_claim):
+                        raise OrientationError(
+                            f"[FACT-LINEAGE-ID] {suspended_fact['lamp_id']} changed after checkpointing"
+                        )
+                    if prior_claim is None:
+                        projected_conflict["claims"].append(suspended_claim)
+                        projected_conflict["claims"].sort(key=lambda item: item["claim_id"])
+                    projected_conflict["material"] = bool(
+                        projected_conflict["material"] or suspended_fact["material"]
+                    )
         dispositions: list[dict[str, Any]] = []
         meaningful: list[dict[str, Any]] = []
         seen_semantics: set[str] = set()
@@ -819,7 +1868,16 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
         for change in normalized_changes:
             if (
                 change["object_type"] == "STATE_CHANGE"
-                and _policy_rejection(change, sources, receipts, base_checkpoint_id, as_of) is None
+                and _policy_rejection(
+                    change,
+                    sources,
+                    receipts,
+                    conflicts.values(),
+                    state.values(),
+                    base_checkpoint_id,
+                    as_of,
+                )
+                is None
             ):
                 id_payloads.setdefault(change["change_id"], set()).add(sha256_hex(change))
         reused_ids = {change_id for change_id, payloads in id_payloads.items() if len(payloads) > 1}
@@ -831,6 +1889,9 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
         for change in ordered_changes:
             if change["sequence"] <= base["last_sequence"]:
                 dispositions.append(_disposition(change, "IGNORED", "COVERED_BY_VALID_CHECKPOINT"))
+                continue
+            if change["change_id"] in historical_event_ids:
+                dispositions.append(_disposition(change, "REJECTED", "HISTORICAL_ID_REUSE"))
                 continue
             if change["change_id"] in reused_ids:
                 dispositions.append(_disposition(change, "REJECTED", "ID_REUSE_CONFLICT"))
@@ -844,7 +1905,15 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 dispositions.append(_disposition(change, "REJECTED", "RECOVERY_CARD_CONTAMINATION"))
                 continue
 
-            policy_reason = _policy_rejection(change, sources, receipts, base_checkpoint_id, as_of)
+            policy_reason = _policy_rejection(
+                change,
+                sources,
+                receipts,
+                conflicts.values(),
+                state.values(),
+                base_checkpoint_id,
+                as_of,
+            )
             if policy_reason:
                 dispositions.append(_disposition(change, "REJECTED", policy_reason))
                 continue
@@ -856,6 +1925,15 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
 
             key = (change["content_type"], change["subject"])
             conflict_id = f"conflict:{change['content_type'].lower()}:{change['subject']}"
+            if (
+                change["content_type"] == "FACT"
+                and conflicts.get(f"conflict:fact:validation.{change['subject']}", {}).get("status")
+                == "DISPUTED"
+            ):
+                dispositions.append(
+                    _disposition(change, "REJECTED", "RECEIPT_CONFLICT_BLOCKS_FACT")
+                )
+                continue
             if change["operation"] == "RESOLVE":
                 requested_conflict_id = change.get("resolves_conflict_id")
                 conflict = conflicts.get(requested_conflict_id)
@@ -865,15 +1943,29 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     or conflict["type"] != change["content_type"]
                     or conflict["subject"] != change["subject"]
                     or conflict["status"] != "DISPUTED"
-                    or change["value"] not in [claim["value"] for claim in conflict["claims"]]
+                    or sha256_hex(change["value"])
+                    not in {sha256_hex(claim["value"]) for claim in conflict["claims"]}
                 ):
                     dispositions.append(_disposition(change, "REJECTED", "INVALID_CONFLICT_RESOLUTION"))
+                    continue
+                if parse_instant(
+                    change["observed_at"], "CHG-TIME", "change.observed_at"
+                ) < _latest_conflict_instant(conflict):
+                    dispositions.append(_disposition(change, "REJECTED", "STALE_CONFLICT_EVENT"))
                     continue
                 before_conflict = copy.deepcopy(conflict)
                 resolved_lamp = _lamp_from_change(change, receipts)
                 state[key] = resolved_lamp
                 conflict["status"] = "RESOLVED"
                 conflict["resolution_change_id"] = change["change_id"]
+                conflict.setdefault("resolution_history", []).append(
+                    {
+                        "change_id": change["change_id"],
+                        "value": copy.deepcopy(change["value"]),
+                        "source_ids": list(change["source_ids"]),
+                        "observed_at": change["observed_at"],
+                    }
+                )
                 conflicts[conflict["conflict_id"]] = conflict
                 disposition = _disposition(change, "APPLIED", "AUTHORIZED_CONFLICT_RESOLUTION")
                 disposition["before"] = before_conflict
@@ -884,6 +1976,14 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
 
             existing_conflict = conflicts.get(conflict_id)
             if existing_conflict and existing_conflict["status"] == "DISPUTED":
+                if change["change_id"] in {claim["claim_id"] for claim in existing_conflict["claims"]}:
+                    dispositions.append(_disposition(change, "REJECTED", "HISTORICAL_ID_REUSE"))
+                    continue
+                if parse_instant(
+                    change["observed_at"], "CHG-TIME", "change.observed_at"
+                ) < _latest_conflict_instant(existing_conflict):
+                    dispositions.append(_disposition(change, "REJECTED", "STALE_CONFLICT_EVENT"))
+                    continue
                 before_conflict = copy.deepcopy(existing_conflict)
                 existing_conflict["claims"].append(
                     {
@@ -896,6 +1996,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                         "observed_at": change["observed_at"],
                     }
                 )
+                existing_conflict["material"] = bool(existing_conflict["material"] or change["material"])
                 disposition = _disposition(change, "DISPUTED", "CONFLICT_PRESERVED")
                 disposition["before"] = before_conflict
                 disposition["after"] = copy.deepcopy(existing_conflict)
@@ -904,6 +2005,18 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 continue
 
             existing = state.get(key)
+            if change["content_type"] == "GOAL" and existing is None and change["operation"] in {"CREATE", "ACTIVATE"}:
+                if any(lamp["type"] == "GOAL" for lamp in state.values()):
+                    dispositions.append(_disposition(change, "REJECTED", "MULTIPLE_ACTIVE_GOALS_NOT_ALLOWED"))
+                    continue
+                if any(
+                    conflict["type"] == "GOAL" and conflict["status"] == "DISPUTED"
+                    for conflict in conflicts.values()
+                ):
+                    dispositions.append(
+                        _disposition(change, "REJECTED", "MULTIPLE_GOAL_CONTEXTS_NOT_ALLOWED")
+                    )
+                    continue
             if change["operation"] in {"UPDATE", "SUPERSEDE", "MOVE"} and existing is None:
                 dispositions.append(_disposition(change, "REJECTED", "TARGET_NOT_ACTIVE"))
                 continue
@@ -913,6 +2026,33 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             if existing is not None and parse_instant(change["observed_at"], "CHG-TIME", "change.observed_at") < parse_instant(existing["updated_at"], "LAMP-TIME", "lamp.updated_at"):
                 dispositions.append(_disposition(change, "REJECTED", "STALE_STATE"))
                 continue
+            if (
+                existing is not None
+                and existing["material"]
+                and not change["material"]
+                and change["content_type"] in {"RISK", "UNKNOWN"}
+                and (
+                    change["authority"] != "AUTHORIZED"
+                    or any(
+                        sources[source_id]["authority"] != "AUTHORIZED"
+                        or sources[source_id]["kind"] not in TRUSTED_AUTHORITY_SOURCE_KINDS
+                        for source_id in change["source_ids"]
+                    )
+                )
+            ):
+                dispositions.append(
+                    _disposition(change, "REJECTED", "UNAUTHORIZED_MATERIALITY_DOWNGRADE")
+                )
+                continue
+            if existing_conflict and existing_conflict["status"] == "RESOLVED":
+                if change["operation"] in {"DEACTIVATE", "INVALIDATE"} or change.get("supersedes") == existing["lamp_id"]:
+                    dispositions.append(
+                        _disposition(change, "REJECTED", "RESOLVED_STATE_REQUIRES_CONFLICT_REOPEN")
+                    )
+                    continue
+                if sha256_hex(existing["value"]) == sha256_hex(change["value"]):
+                    dispositions.append(_disposition(change, "IGNORED", "NO_NEW_MEANING"))
+                    continue
             if change["operation"] in {"INVALIDATE", "DEACTIVATE"}:
                 if existing is None:
                     dispositions.append(_disposition(change, "REJECTED", "TARGET_NOT_ACTIVE"))
@@ -934,7 +2074,11 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
-            if existing is not None and existing["value"] != change["value"]:
+            same_value = (
+                existing is not None
+                and sha256_hex(existing["value"]) == sha256_hex(change["value"])
+            )
+            if existing is not None and not same_value:
                 if change.get("supersedes") == existing["lamp_id"]:
                     updated_lamp = _lamp_from_change(change, receipts)
                     state[key] = updated_lamp
@@ -942,7 +2086,12 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     disposition["before"] = copy.deepcopy(existing)
                     disposition["after"] = copy.deepcopy(updated_lamp)
                 else:
-                    opened_conflict = _open_conflict(existing, change, receipts)
+                    opened_conflict = _open_conflict(
+                        existing,
+                        change,
+                        receipts,
+                        existing_conflict if existing_conflict and existing_conflict["status"] == "RESOLVED" else None,
+                    )
                     conflicts[conflict_id] = opened_conflict
                     state.pop(key)
                     disposition = _disposition(change, "DISPUTED", "CONFLICT_PRESERVED")
@@ -951,15 +2100,32 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
-            if existing is not None and existing["value"] == change["value"]:
+            if existing is not None and same_value:
                 merged = copy.deepcopy(existing)
                 merged["source_ids"] = sorted(set(merged["source_ids"] + _evidence_source_ids(change, receipts)))
-                if merged["source_ids"] == existing["source_ids"]:
+                metadata_changed = any(
+                    existing[field] != change[field]
+                    for field in ("epistemic", "authority", "material")
+                ) or (
+                    change["content_type"] == "FACT"
+                    and existing.get("validation_receipt_id") != change.get("validation_receipt_id")
+                )
+                sources_changed = merged["source_ids"] != existing["source_ids"]
+                if not metadata_changed and not sources_changed:
                     dispositions.append(_disposition(change, "IGNORED", "NO_NEW_MEANING"))
                     continue
-                merged["updated_at"] = max(existing["updated_at"], change["observed_at"])
+                merged["epistemic"] = change["epistemic"]
+                merged["authority"] = change["authority"]
+                merged["material"] = change["material"]
+                merged["updated_at"] = change["observed_at"]
+                if change["content_type"] == "FACT":
+                    merged["validation_receipt_id"] = change["validation_receipt_id"]
                 state[key] = merged
-                disposition = _disposition(change, "APPLIED", "CORROBORATING_SOURCE_MERGED")
+                disposition = _disposition(
+                    change,
+                    "APPLIED",
+                    "STATE_METADATA_UPDATED" if metadata_changed else "CORROBORATING_SOURCE_MERGED",
+                )
                 disposition["before"] = copy.deepcopy(existing)
                 disposition["after"] = copy.deepcopy(merged)
                 dispositions.append(disposition)
@@ -978,26 +2144,47 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             (item["sequence"] for item in meaningful),
             default=base["last_sequence"],
         )
-        unknowns = _critical_unknowns(effective_receipts, base["unknowns"], active_lamps)
+        unknowns = _critical_unknowns(
+            effective_receipts,
+            base["unknowns"],
+            active_lamps,
+            conflicts.values(),
+        )
         open_conflicts = sorted((item for item in conflicts.values() if item["status"] == "DISPUTED"), key=lambda item: item["conflict_id"])
         retained_conflicts = sorted(conflicts.values(), key=lambda item: item["conflict_id"])
-        semantic_input_changed = bool(meaningful) or bool(effective_receipts) or retained_conflicts != base["conflicts"] or unknowns != base["unknowns"]
+        new_effective_receipts = [
+            receipt
+            for receipt in effective_receipts
+            if parse_instant(receipt["checked_at"], "RECEIPT-TIME", "receipt.checked_at")
+            > parse_instant(base["created_at"], "CP-TIME", "checkpoint.created_at")
+        ]
+        semantic_input_changed = (
+            bool(meaningful)
+            or bool(new_effective_receipts)
+            or validation_receipt_pointers != base.get("validation_receipt_pointers", [])
+            or retained_conflicts != base["conflicts"]
+            or unknowns != base["unknowns"]
+        )
         if semantic_input_changed:
-            voltage, selected_step = _choose_next_step(open_conflicts, unknowns, effective_receipts, sources, active_lamps)
+            voltage, selected_step = _choose_next_step(
+                open_conflicts,
+                unknowns,
+                _action_driving_receipts(effective_receipts, retained_conflicts),
+                sources,
+                active_lamps,
+                as_of,
+            )
             next_step = _attach_orientation_context(selected_step, active_lamps)
         else:
             voltage, next_step = base["voltage"], copy.deepcopy(base["primary_next_step"])
-        failed_material = sorted((item for item in effective_receipts if item["status"] == "FAIL" and item["material"]), key=lambda item: item["receipt_id"])
-        passed_material = sorted((item for item in effective_receipts if item["status"] == "PASS" and item["material"]), key=lambda item: item["receipt_id"])
-        if failed_material:
-            city_position = failed_material[0]["summary"]
-            position_sources = failed_material[0]["source_ids"]
-        elif passed_material:
-            city_position = passed_material[0]["summary"]
-            position_sources = passed_material[0]["source_ids"]
-        else:
+        evidenced_position = _select_evidenced_city_position(
+            effective_receipts, retained_conflicts, active_lamps
+        )
+        if evidenced_position is None:
             city_position = base["city_position"]
             position_sources = list(base["city_position_source_ids"])
+        else:
+            city_position, position_sources = evidenced_position
 
         referenced_sources = set(position_sources + next_step["source_ids"])
         if next_step.get("goal"):
@@ -1009,8 +2196,14 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
         for conflict in retained_conflicts:
             for claim in conflict["claims"]:
                 referenced_sources.update(claim["source_ids"])
+            for resolution in conflict.get("resolution_history", []):
+                referenced_sources.update(resolution["source_ids"])
         for unknown in unknowns:
             referenced_sources.update(unknown["source_ids"])
+        for change in meaningful:
+            referenced_sources.update(change["source_ids"])
+        for pointer in validation_receipt_pointers:
+            referenced_sources.update(pointer["source_ids"])
 
         checkpoint_payload: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
@@ -1026,6 +2219,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             "voltage": voltage,
             "primary_next_step": next_step,
             "source_pointers": _source_pointers(referenced_sources, sources),
+            "validation_receipt_pointers": validation_receipt_pointers,
         }
         checkpoint_required = (
             bool(meaningful)
@@ -1034,6 +2228,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             or unknowns != base["unknowns"]
             or voltage != base["voltage"]
             or next_step != base["primary_next_step"]
+            or validation_receipt_pointers != base.get("validation_receipt_pointers", [])
         )
         if checkpoint_required:
             checkpoint_payload["checkpoint_id"] = f"cp:{sha256_hex({key: value for key, value in checkpoint_payload.items() if key != 'checkpoint_id'})[:16]}"
@@ -1042,7 +2237,9 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             checkpoint = copy.deepcopy(base)
         recovery_card = _derive_recovery_card(checkpoint)
         executed_untrusted = any(item["reason"] == "IMPORTED_TEXT_IS_DATA_NOT_INSTRUCTION" and item["status"] != "IGNORED" for item in dispositions)
-        checkpoint_valid, _ = _checkpoint_is_semantically_valid(checkpoint, as_of, sources, receipts)
+        checkpoint_valid, checkpoint_reason = _checkpoint_is_semantically_valid(checkpoint, as_of, sources, receipts)
+        if not checkpoint_valid:
+            raise OrientationError(f"[CP-INTERNAL] generated checkpoint failed semantic validation: {checkpoint_reason}")
         checks = {
             "checkpoint_integrity_and_structure": checkpoint_valid,
             "exactly_one_next_step": _next_step_is_valid(checkpoint["primary_next_step"], set(sources)),
@@ -1055,6 +2252,16 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             "material_outputs_have_sources": checkpoint_valid,
             "disputed_claims_not_action_driving": not any(
                 lamp.get("epistemic") == "DISPUTED" for lamp in checkpoint["active_lamps"]
+            )
+            and not any(
+                lamp.get("type") == "FACT"
+                and any(
+                    conflict.get("status") == "DISPUTED"
+                    and conflict.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+                    and conflict.get("subject") == f"validation.{lamp.get('subject')}"
+                    for conflict in checkpoint["conflicts"]
+                )
+                for lamp in checkpoint["active_lamps"]
             ),
         }
         run_status = "PASS" if all(checks.values()) else "FAIL"
@@ -1087,33 +2294,156 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
 def evaluate_success_condition(result: dict[str, Any], condition: dict[str, Any]) -> bool:
     """Evaluate the closed, machine-verifiable success-condition vocabulary."""
 
+    if not _success_condition_is_valid(condition):
+        return False
     condition_type = condition.get("type")
     checkpoint = result.get("checkpoint", {})
+    open_conflicts = [
+        item for item in checkpoint.get("conflicts", []) if item.get("status") == "DISPUTED"
+    ]
+
+    def has_open_conflict(content_type: str, subject: str) -> bool:
+        return any(
+            item.get("type") == content_type and item.get("subject") == subject
+            for item in open_conflicts
+        )
+
+    def receipt_claim_is_disputed(subject: str) -> bool:
+        trusted = [
+            item
+            for item in result.get("validation_receipts", [])
+            if item.get("subject") == subject and item.get("validator_id") in TRUSTED_VALIDATOR_IDS
+        ]
+        matching_conflicts = [
+            item
+            for item in checkpoint.get("conflicts", [])
+            if item.get("type") == "FACT"
+            and item.get("subject") == f"validation.{subject}"
+            and item.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+        ]
+        if matching_conflicts:
+            return len(matching_conflicts) != 1 or matching_conflicts[0].get("status") != "RESOLVED"
+        return len({_receipt_claim_identity(item) for item in trusted}) > 1
+
+    def selected_receipt_resolution(subject: str) -> dict[str, Any] | None:
+        matching = [
+            item
+            for item in checkpoint.get("conflicts", [])
+            if item.get("type") == "FACT"
+            and item.get("subject") == f"validation.{subject}"
+            and item.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+        ]
+        if len(matching) != 1 or matching[0].get("status") != "RESOLVED":
+            return None
+        lamps = [
+            item
+            for item in checkpoint.get("active_lamps", [])
+            if item.get("type") == "FACT" and item.get("subject") == f"validation.{subject}"
+        ]
+        if len(lamps) != 1 or not isinstance(lamps[0].get("value"), dict):
+            return None
+        return lamps[0]["value"]
+
+    def matching_pass_after(
+        subject: str,
+        assertion_sha256: str,
+        checked_after: Any,
+    ) -> bool:
+        has_receipt_conflict = any(
+            item.get("type") == "FACT"
+            and item.get("subject") == f"validation.{subject}"
+            and item.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+            for item in checkpoint.get("conflicts", [])
+        )
+        selected = selected_receipt_resolution(subject)
+        if has_receipt_conflict and selected is None:
+            return False
+        if selected is not None and (
+                selected.get("status") != "PASS"
+                or selected.get("assertion_sha256") != assertion_sha256
+                or not _text(selected.get("summary"))
+            ):
+            return False
+        return any(
+            item.get("subject") == subject
+            and item.get("assertion_sha256") == assertion_sha256
+            and _receipt_is_trusted_pass(item)
+            and (selected is None or item.get("summary") == selected.get("summary"))
+            and parse_instant(item.get("checked_at"), "RECEIPT-TIME", "receipt.checked_at")
+            > checked_after
+            for item in result.get("validation_receipts", [])
+        )
+
     if condition_type == "conflict_resolved":
         subject = condition.get("subject")
+        content_type = condition.get("content_type")
         authority = condition.get("required_authority")
-        open_conflict = any(item.get("subject") == subject and item.get("status") == "DISPUTED" for item in checkpoint.get("conflicts", []))
-        active = any(item.get("subject") == subject and item.get("authority") == authority for item in checkpoint.get("active_lamps", []))
-        return not open_conflict and active
+        active = any(
+            item.get("type") == content_type
+            and item.get("subject") == subject
+            and item.get("authority") == authority
+            for item in checkpoint.get("active_lamps", [])
+        )
+        return not has_open_conflict(content_type, subject) and active
+    if condition_type == "constraint_policy_allows":
+        subject = condition.get("subject")
+        policy_class = condition.get("policy_class")
+        if has_open_conflict("CONSTRAINT", subject):
+            return False
+        constraint = next(
+            (
+                item
+                for item in checkpoint.get("active_lamps", [])
+                if item.get("type") == "CONSTRAINT" and item.get("subject") == subject
+            ),
+            None,
+        )
+        return constraint is None or not _constraint_forbids(constraint.get("value"), policy_class)
     if condition_type == "unknown_resolved":
         subject = condition.get("subject")
-        return not any(item.get("subject") == subject for item in checkpoint.get("unknowns", []))
+        root_subject = (
+            subject[: -len(".failure_cause")]
+            if isinstance(subject, str) and subject.endswith(".failure_cause")
+            else subject
+        )
+        lineage = {subject, root_subject, f"validation.{root_subject}"}
+        return not any(item.get("subject") in lineage for item in checkpoint.get("unknowns", [])) and not any(
+            item.get("subject") in lineage for item in open_conflicts
+        )
     if condition_type == "risk_mitigated":
         subject = condition.get("subject")
-        return not any(
+        return not has_open_conflict("RISK", subject) and not any(
             item.get("type") == "RISK" and item.get("subject") == subject and item.get("material")
             for item in checkpoint.get("active_lamps", [])
         )
     if condition_type == "validation_pass":
         subject = condition.get("subject")
-        return any(
-            item.get("subject") == subject
-            and _receipt_is_trusted_pass(item)
-            for item in result.get("validation_receipts", [])
+        if receipt_claim_is_disputed(subject):
+            return False
+        assertion_sha256 = condition.get("assertion_sha256")
+        try:
+            checked_after = parse_instant(
+                condition.get("checked_after"), "STEP-TIME", "success_condition.checked_after"
+            )
+        except ContractError:
+            return False
+        return condition.get("status") == "PASS" and matching_pass_after(
+            subject, assertion_sha256, checked_after
         )
     if condition_type == "validation_receipt_retained":
-        return any(
-            condition.get("status") == "PASS" and _receipt_is_trusted_pass(item)
-            for item in result.get("validation_receipts", [])
+        subject = condition.get("subject")
+        if receipt_claim_is_disputed(subject):
+            return False
+        assertion_sha256 = condition.get("assertion_sha256")
+        try:
+            checked_after = parse_instant(
+                condition.get("checked_after"),
+                "STEP-TIME",
+                "success_condition.checked_after",
+            )
+        except ContractError:
+            return False
+        return condition.get("status") == "PASS" and matching_pass_after(
+            subject, assertion_sha256, checked_after
         )
     return False

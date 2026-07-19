@@ -4,7 +4,7 @@
     <path d="M48 57 62 33l14 24M53 53h18M58 62h8" fill="none" stroke="#17211d" stroke-width="2.2" stroke-linecap="round"/>
     <text x="90" y="54" font-size="20" font-weight="700">ZNAK ORIENT</text>
     <text x="570" y="48" font-size="12" fill="#62706a">judge-safe-orientation-demo-001</text>
-    <text x="570" y="66" font-family="Consolas, monospace" font-size="10" fill="#62706a">checkpoint f656f572f6e5e2ccc…</text>
+    <text x="570" y="66" font-family="Consolas, monospace" font-size="10" fill="#62706a">checkpoint 666249a080192b88…</text>
     <rect x="1000" y="28" width="154" height="44" rx="7" fill="#fff" stroke="#d7d9d2"/>
     <text x="1077" y="55" text-anchor="middle" font-size="13" font-weight="700">Choose JSON</text>
     <rect x="1170" y="28" width="220" height="44" rx="7" fill="#17211d"/>
