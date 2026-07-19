@@ -29,6 +29,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual("PASS", result["run_receipt"]["status"])
             self.assertEqual("ORIENTATION_TRANSFORM_ONLY", result["run_receipt"]["scope"])
             self.assertIn("does not claim project completion", result["run_receipt"]["claim_limit"])
+            self.assertEqual([], list(Path(directory).glob(".*.tmp")))
 
 
 if __name__ == "__main__":

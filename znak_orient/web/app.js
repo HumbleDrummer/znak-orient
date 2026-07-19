@@ -51,6 +51,13 @@ function renderIntake() {
 
 function renderCurrent(result) {
   const checkpoint = result.checkpoint;
+  const guideState = {
+    FLOWING: "Direction is clear",
+    WEAK: "Mitigation comes first",
+    BLOCKED: "Holding at the blocker",
+    BROKEN: "Correct the course",
+    UNKNOWN: "Waiting for evidence",
+  };
   setText("package-name", result.package_id);
   setText("checkpoint-hash", checkpoint.integrity.value.slice(0, 18) + "…");
   setText("voltage", checkpoint.voltage);
@@ -59,6 +66,9 @@ function renderCurrent(result) {
   setText("goal", goalFrom(checkpoint));
   setText("base-status", result.base_checkpoint.status);
   setText("execution-mode", result.execution_mode.replaceAll("_", " "));
+  byId("orientation-guide").dataset.voltage = checkpoint.voltage;
+  setText("assistant-state", guideState[checkpoint.voltage] || guideState.UNKNOWN);
+  setText("assistant-cue", checkpoint.primary_next_step.instruction);
   setText("next-step-title", checkpoint.primary_next_step.instruction);
   setText("next-step-reason", checkpoint.primary_next_step.reason);
   setText("next-step-sources", `Sources ${checkpoint.primary_next_step.source_ids.join(" · ")}`);
@@ -171,14 +181,14 @@ function render(result) {
   renderReceipts(result);
 }
 
-async function requestResult(url, options) {
+async function requestResult(url, options, announce = true) {
   byId("rerun").disabled = true;
   try {
     const response = await fetch(url, options);
     const body = await response.json();
     if (!response.ok) throw new Error(body.detail || body.error || `HTTP ${response.status}`);
     render(body);
-    showToast("Orientation recovered from source-backed evidence.");
+    if (announce) showToast("Orientation recovered from source-backed evidence.");
   } catch (error) {
     showToast(`Orientation failed: ${error.message}`);
   } finally {
@@ -217,5 +227,4 @@ byId("copy-card").addEventListener("click", async () => {
   }
 });
 
-requestResult("/api/demo");
-
+requestResult("/api/demo", undefined, false);

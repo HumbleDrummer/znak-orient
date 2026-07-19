@@ -21,7 +21,18 @@ def normalize_value(value: Any) -> Any:
     if isinstance(value, list):
         return [normalize_value(item) for item in value]
     if isinstance(value, dict):
-        return {normalize_text(str(key)): normalize_value(item) for key, item in value.items()}
+        normalized_keys: list[str] = []
+        seen_keys: set[str] = set()
+        for key in value:
+            normalized_key = normalize_text(str(key))
+            if normalized_key in seen_keys:
+                raise TypeError("dictionary keys collide after canonical normalization")
+            seen_keys.add(normalized_key)
+            normalized_keys.append(normalized_key)
+        return {
+            normalized_key: normalize_value(item)
+            for normalized_key, item in zip(normalized_keys, value.values(), strict=True)
+        }
     if value is None or isinstance(value, (bool, int)):
         return value
     raise TypeError(f"unsupported canonical value type: {type(value).__name__}")
@@ -63,4 +74,3 @@ def verify_checkpoint_integrity(checkpoint: dict[str, Any]) -> bool:
         return False
     expected = integrity.get("value")
     return isinstance(expected, str) and expected == checkpoint_integrity_value(checkpoint)
-

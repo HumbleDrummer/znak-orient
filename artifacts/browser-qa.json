@@ -1,0 +1,26 @@
+{
+  "scope": "LOCAL_BROWSER_WORKFLOW_ONLY",
+  "status": "PASS",
+  "base_url": "http://127.0.0.1:8765",
+  "execution": "LOCAL_HEADLESS_CHROMIUM_NO_EXTERNAL_HOSTS",
+  "checks": {
+    "six_required_sections": true,
+    "source_backed_position": true,
+    "exactly_one_visible_next_step": true,
+    "assistant_reacts_to_voltage": true,
+    "assistant_repeats_exact_next_step": true,
+    "assistant_animation_active": true,
+    "rejected_filter_count": true,
+    "all_filter_restored": true,
+    "scoped_run_pass": true,
+    "no_horizontal_overflow": true,
+    "clipboard_card_payload_non_authoritative": true,
+    "no_console_or_page_errors": true,
+    "mobile_no_horizontal_overflow": true,
+    "mobile_position_precedes_intake": true,
+    "assistant_reduced_motion_respected": true
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "claim_limit": "This receipt proves only the tested local headless workflow; it does not prove publication, external source truth, clipboard support in other browsers, or production readiness."
+}

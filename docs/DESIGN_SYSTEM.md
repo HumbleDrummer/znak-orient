@@ -10,7 +10,7 @@ Required regions, in reading order:
 
 1. header with product name, loaded package, checkpoint hash, and rerun control
 2. Noise Intake evidence rail
-3. Current Position and exactly one primary next step
+3. Current Position, a voltage-reactive orientation guide, and exactly one primary next step
 4. Conflict and Unknowns
 5. non-authoritative Recovery Card
 6. Source Evidence table
@@ -24,7 +24,7 @@ Required regions, in reading order:
 - signal green: `#0f6d52`; caution amber: `#9a5d00`; conflict red: `#a9362a`; direction blue: `#2056a8`
 - typography: Segoe UI/Aptos for interface text; Cascadia Mono/Consolas for identifiers and hashes
 - geometry: square editorial panels with 8px corners; no nested card grid, glow, gradient, map, marketplace, or decorative percentage
-- motion: one restrained result refresh transition; disabled under `prefers-reduced-motion`
+- motion: a restrained guide float, pointing arm, and signal pulse; all disabled under `prefers-reduced-motion`
 
 ## Layout and responsive behavior
 
@@ -35,6 +35,7 @@ At 1280×800 or wider, use a three-rail opening layout: 28% intake, 44% current 
 - ruled section header with explicit item count
 - evidence row with disposition bar and source identifier
 - semantic status label used only for real state (`APPLIED`, `REJECTED`, `DISPUTED`, `UNKNOWN`)
+- code-native SVG orientation figure: status color and label derive from voltage; cue repeats the exact primary next step
 - next-step block with reason, sources, and success-condition code
 - source table and validation check rows
 - code-native SVG direction/copy/reload icons with consistent 1.75px strokes
@@ -46,8 +47,9 @@ At 1280×800 or wider, use a three-rail opening layout: 28% intake, 44% current 
 - `Noise Intake`
 - `Conflict and Unknowns`
 - `Recovery Card`
+- `Choose JSON`
 - `Re-run orientation`
+- `Orientation guide`
 - loaded package name, checkpoint hash, voltage, exact project goal, exact current position, and exact selected next step derived from the package
 
-All other dynamic text must come from the deterministic result, not invented UI claims.
-
+The guide's short state line is selected from a closed presentation map over the deterministic voltage. Its cue must equal the deterministic next-step instruction. All other dynamic text must come from the deterministic result, not invented UI claims.

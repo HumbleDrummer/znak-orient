@@ -4,11 +4,38 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from . import __version__
 from .engine import OrientationError, orient
+
+
+def _atomic_write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+            delete=False,
+        ) as handle:
+            temporary_name = handle.name
+            json.dump(value, handle, ensure_ascii=False, sort_keys=True, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_name, path)
+        temporary_name = None
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -34,8 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "verify-demo":
             package = json.loads(args.input.read_text(encoding="utf-8"))
             result = orient(package)
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+            _atomic_write_json(args.output, result)
             receipt = result["run_receipt"]
             print(f"ORIENTATION_{receipt['status']} checkpoint={result['checkpoint']['checkpoint_id']} output={args.output}")
             return 0 if receipt["status"] == "PASS" else 1
@@ -52,4 +78,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

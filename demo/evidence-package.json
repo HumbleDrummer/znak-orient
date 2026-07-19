@@ -78,6 +78,20 @@
   ],
   "validation_receipts": [
     {
+      "receipt_id": "vr-core-001",
+      "validator_id": "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+      "subject": "project.phase",
+      "status": "PASS",
+      "checked_at": "2026-07-18T18:00:00+02:00",
+      "material": false,
+      "summary": "Core phase checkpoint validation passed.",
+      "assertion_sha256": "8c3c072f6bc2253c4c50cf64d78838410536beac593f79b45e812ace44c6699b",
+      "source_ids": ["src-checkpoint-001"],
+      "checks": [
+        {"id": "core-phase-recorded", "status": "PASS"}
+      ]
+    },
+    {
       "receipt_id": "vr-clean-007",
       "validator_id": "SYNTHETIC_CLEAN_CHECKOUT_FIXTURE",
       "subject": "project.completion",
@@ -85,6 +99,7 @@
       "checked_at": "2026-07-19T08:10:00+02:00",
       "material": true,
       "summary": "Clean-checkout validation failed; ZNAK ORIENT is not yet judge-ready.",
+      "assertion_sha256": "4dc7bc201c36b6ce654527e82784f9dd66558c8c50078ac65b444cd37ac75837",
       "source_ids": ["src-clean-validation"],
       "checks": [
         {"id": "web-entrypoint-present", "status": "FAIL"},
@@ -119,6 +134,7 @@
           "value": "CORE_IMPLEMENTED_VALIDATION_PENDING",
           "epistemic": "VERIFIED",
           "authority": "NOT_APPLICABLE",
+          "validation_receipt_id": "vr-core-001",
           "source_ids": ["src-checkpoint-001"],
           "updated_at": "2026-07-18T18:00:00+02:00",
           "material": true
@@ -149,13 +165,24 @@
       "recent_changes": [],
       "conflicts": [],
       "unknowns": [],
-      "voltage": "WEAK",
+      "voltage": "FLOWING",
       "primary_next_step": {
-        "action_id": "validate:clean-checkout",
-        "instruction": "Run clean-checkout validation.",
-        "reason": "Runtime evidence is still missing.",
-        "source_ids": ["src-checkpoint-001"],
-        "success_condition": {"type": "validation_pass", "subject": "project.completion"}
+        "action_id": "validate:current-goal",
+        "instruction": "Execute the next goal-aligned validation and retain its receipt.",
+        "reason": "No material conflict or critical unknown currently blocks the goal.",
+        "policy_class": "GOAL_VALIDATION",
+        "source_ids": ["src-pin-001"],
+        "success_condition": {"type": "validation_receipt_retained", "status": "PASS"},
+        "goal": {
+          "subject": "project.primary",
+          "source_ids": ["src-pin-001"]
+        },
+        "constraints": [
+          {
+            "subject": "network.policy",
+            "source_ids": ["src-pin-001"]
+          }
+        ]
       },
       "source_pointers": [
         {
@@ -163,26 +190,29 @@
           "kind": "CHECKPOINT",
           "locator": "demo://checkpoint/cp-old-valid-001",
           "captured_at": "2026-07-18T18:00:00+02:00",
-          "authority": "AUTHORIZED"
+          "authority": "AUTHORIZED",
+          "content_sha256": "2c4b3d8ca99bc8e8697a1f5b722546e4425940f1795a9c3c659101cffd96d202"
         },
         {
           "source_id": "src-entrypoint-old",
           "kind": "DECISION_RECORD",
           "locator": "demo://decisions/entrypoint-old",
           "captured_at": "2026-07-18T17:30:00+02:00",
-          "authority": "AUTHORIZED"
+          "authority": "AUTHORIZED",
+          "content_sha256": "6c845f229391a7779db8ef7fd818f036540ec8495780c50a9d81a07baf83d228"
         },
         {
           "source_id": "src-pin-001",
           "kind": "USER_PIN",
           "locator": "pin://ZNAK_ORIENT_BUILD_WEEK_EXECUTION#mission",
           "captured_at": "2026-07-19T07:50:00+02:00",
-          "authority": "AUTHORIZED"
+          "authority": "AUTHORIZED",
+          "content_sha256": "8be6e2de834b5611f5ce2ced10691b865d18a890a305a88668821055569e1750"
         }
       ],
       "integrity": {
         "algorithm": "sha256",
-        "value": "2ff449678f6ed8f8826814af4fce90dcbc32063c232ae02d37038a7b2e90afe1"
+        "value": "d93e0755ac2dd65041398d0a51c81b29d514ea5419440035d3986844bb1f66f8"
       }
     },
     "fallbacks": []
@@ -194,7 +224,7 @@
       "sequence": 5,
       "observed_at": "2026-07-19T08:12:00+02:00",
       "content_type": "FACT",
-      "operation": "UPDATE",
+      "operation": "CREATE",
       "subject": "project.completion",
       "value": "COMPLETE",
       "epistemic": "VERIFIED",

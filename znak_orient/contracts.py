@@ -14,7 +14,11 @@ EPISTEMIC_STATES = {"VERIFIED", "SUPPORTED", "INFERRED", "UNKNOWN", "DISPUTED"}
 AUTHORITIES = {"AUTHORIZED", "UNAUTHORIZED", "NOT_APPLICABLE"}
 OBJECT_TYPES = {"TRACE", "STATE_CHANGE", "RECOVERY_CARD"}
 RECEIPT_STATUSES = {"PASS", "FAIL", "UNKNOWN"}
-TRUSTED_VALIDATOR_IDS = {"ZNAK_ORIENT_LOCAL_TEST_RUNNER"}
+TRUSTED_VALIDATOR_IDS = {
+    "SYNTHETIC_CLEAN_CHECKOUT_FIXTURE",
+    "ZNAK_ORIENT_LOCAL_TEST_RUNNER",
+}
+TRUSTED_AUTHORITY_SOURCE_KINDS = {"USER_PIN", "USER_DECISION", "DECISION_RECORD"}
 
 
 class ContractError(ValueError):
@@ -60,7 +64,7 @@ def validate_source(source: Any) -> dict[str, Any]:
     require(authority in AUTHORITIES, "SRC-003", f"unsupported source authority {authority!r}")
     captured_at = require_text(item.get("captured_at"), "SRC-004", "source.captured_at")
     parse_instant(captured_at, "SRC-004", "source.captured_at")
-    return {
+    normalized = {
         "source_id": source_id,
         "kind": require_text(item.get("kind"), "SRC-005", "source.kind"),
         "locator": require_text(item.get("locator"), "SRC-006", "source.locator"),
@@ -68,6 +72,8 @@ def validate_source(source: Any) -> dict[str, Any]:
         "authority": authority,
         "excerpt": normalize_text(item.get("excerpt", "")) if isinstance(item.get("excerpt", ""), str) else "",
     }
+    normalized["content_sha256"] = sha256_hex(normalized)
+    return normalized
 
 
 def validate_receipt(receipt: Any) -> dict[str, Any]:
@@ -78,6 +84,28 @@ def validate_receipt(receipt: Any) -> dict[str, Any]:
     parse_instant(checked_at, "RCP-003", "receipt.checked_at")
     source_ids = [require_text(value, "RCP-004", "receipt.source_id") for value in require_list(item.get("source_ids"), "RCP-004", "receipt.source_ids")]
     require(bool(source_ids), "RCP-004", "receipt.source_ids cannot be empty")
+    raw_checks = require_list(item.get("checks"), "RCP-009", "receipt.checks")
+    require(bool(raw_checks), "RCP-009", "receipt.checks cannot be empty")
+    checks: list[dict[str, str]] = []
+    check_ids: set[str] = set()
+    for raw_check in raw_checks:
+        check = require_mapping(raw_check, "RCP-009", "receipt.check")
+        check_id = require_text(check.get("id"), "RCP-009", "receipt.check.id")
+        check_status = require_text(check.get("status"), "RCP-009", "receipt.check.status")
+        require(check_status in RECEIPT_STATUSES, "RCP-009", "receipt check has unsupported status")
+        require(check_id not in check_ids, "RCP-009", "receipt check IDs must be unique")
+        check_ids.add(check_id)
+        checks.append({"id": check_id, "status": check_status})
+    require(status != "PASS" or all(check["status"] == "PASS" for check in checks), "RCP-010", "PASS receipt contains a non-PASS check")
+    require(status != "FAIL" or any(check["status"] == "FAIL" for check in checks), "RCP-010", "FAIL receipt has no failed check")
+    require(status != "UNKNOWN" or any(check["status"] == "UNKNOWN" for check in checks), "RCP-010", "UNKNOWN receipt has no unknown check")
+    assertion_sha256 = require_text(item.get("assertion_sha256"), "RCP-011", "receipt.assertion_sha256") if item.get("assertion_sha256") is not None else ""
+    require(
+        not assertion_sha256 or (len(assertion_sha256) == 64 and all(character in "0123456789abcdef" for character in assertion_sha256)),
+        "RCP-011",
+        "receipt.assertion_sha256 must be a lowercase SHA-256 digest",
+    )
+    require(status != "PASS" or bool(assertion_sha256), "RCP-011", "PASS receipt must bind an assertion hash")
     return {
         "receipt_id": require_text(item.get("receipt_id"), "RCP-005", "receipt_id"),
         "validator_id": require_text(item.get("validator_id"), "RCP-008", "receipt.validator_id"),
@@ -87,7 +115,8 @@ def validate_receipt(receipt: Any) -> dict[str, Any]:
         "material": bool(item.get("material", False)),
         "summary": require_text(item.get("summary"), "RCP-007", "receipt.summary"),
         "source_ids": sorted(set(source_ids)),
-        "checks": normalize_value(item.get("checks", [])),
+        "checks": checks,
+        "assertion_sha256": assertion_sha256,
     }
 
 
