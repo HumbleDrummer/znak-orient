@@ -6,7 +6,9 @@
 
 No dedicated ZNAK ORIENT 0.3C product repository or implementation checkout with valid Git history was found. The authorized response is to create the smallest isolated repository at:
 
-`C:\path\to\znak-orient`
+`<authorized-workspace>\outputs\znak-orient`
+
+The machine-specific workspace prefix is intentionally omitted from the publication-facing record.
 
 The original product baseline branch and commit are therefore `NOT_APPLICABLE`.
 
@@ -46,4 +48,3 @@ The new repo therefore uses Python's standard-library `unittest` runner and a st
 ## Evidence boundary
 
 Historical reports such as `99 passed` or `173 passed` were not reproduced in this new repository and are not product PASS evidence. No source code was copied from the excluded candidates during this preflight.
-

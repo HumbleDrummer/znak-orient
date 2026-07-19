@@ -1,5 +1,7 @@
 # Clean-checkout validation receipt — 2026-07-19
 
+> Historical receipt for commit `2a3b961e54c0d5fb0d2e269379cf4024a5304da9`. It is retained without rewriting its evidence. The later assistant/interface refinement is governed by `VALIDATION_REFINEMENT_2026-07-19.md`.
+
 ## Scope and identity
 
 - status: `PASS`

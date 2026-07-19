@@ -3,7 +3,7 @@
 ## Current verified local repository
 
 ```text
-C:\path\to\znak-orient
+<authorized-workspace>\outputs\znak-orient
 ```
 
 - branch: `main`
@@ -13,7 +13,7 @@ C:\path\to\znak-orient
 Judges with filesystem access can clone the repository directly:
 
 ```powershell
-git clone "C:\path\to\znak-orient" znak-orient-judge
+git clone "PATH\TO\znak-orient" znak-orient-judge
 Set-Location znak-orient-judge
 python -m unittest discover -s tests -v
 python -m znak_orient verify-demo --input demo/evidence-package.json --output artifacts/demo-result.json

@@ -1,88 +1,162 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
-  <rect width="1440" height="900" fill="#f3f1eb"/>
-  <g font-family="Segoe UI, Arial, sans-serif" fill="#17211d">
-    <path d="M48 57 62 33l14 24M53 53h18M58 62h8" fill="none" stroke="#17211d" stroke-width="2.2" stroke-linecap="round"/>
-    <text x="90" y="54" font-size="20" font-weight="700">ZNAK ORIENT</text>
-    <text x="570" y="48" font-size="12" fill="#62706a">judge-safe-orientation-demo-001</text>
-    <text x="570" y="66" font-family="Consolas, monospace" font-size="10" fill="#62706a">checkpoint 666249a080192b88…</text>
-    <rect x="1000" y="28" width="154" height="44" rx="7" fill="#fff" stroke="#d7d9d2"/>
-    <text x="1077" y="55" text-anchor="middle" font-size="13" font-weight="700">Choose JSON</text>
-    <rect x="1170" y="28" width="220" height="44" rx="7" fill="#17211d"/>
-    <text x="1280" y="55" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Re-run orientation</text>
-    <line x1="48" y1="92" x2="1390" y2="92" stroke="#d7d9d2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title description">
+  <title id="title">ZNAK ORIENT interface concept</title>
+  <desc id="description">Editorial paper interface centered on Current Position, with a single integrated ZNAK assistant and one justified next action in a blocked state.</desc>
 
-    <rect x="48" y="120" width="315" height="820" rx="8" fill="#fff" stroke="#d7d9d2"/>
-    <text x="72" y="151" font-family="Consolas, monospace" font-size="10" fill="#62706a">01</text>
-    <text x="72" y="180" font-size="24" font-weight="700">Noise Intake</text>
-    <text x="330" y="176" text-anchor="end" font-size="11" fill="#62706a">8 items</text>
-    <line x1="72" y1="197" x2="339" y2="197" stroke="#d7d9d2"/>
-    <g font-size="10" font-weight="700" fill="#62706a"><text x="72" y="224">ALL</text><text x="112" y="224">APPLIED</text><text x="178" y="224">REJECTED</text><text x="248" y="224">DISPUTED</text></g>
+  <rect width="1440" height="900" fill="#f3f1eb"/>
+
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#17211d">
+    <!-- Masthead -->
+    <path d="M48 57 62 33l14 24M53 53h18M58 62h8" fill="none" stroke="#17211d" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="90" y="54" font-size="20" font-weight="700" letter-spacing="0.4">ZNAK ORIENT</text>
+    <text x="566" y="46" font-size="11" fill="#62706a" letter-spacing="0.5">judge-safe-orientation-demo-001</text>
+    <text x="566" y="64" font-family="Consolas, monospace" font-size="10" fill="#62706a">checkpoint 666249a080192b88…</text>
+    <rect x="1012" y="27" width="154" height="44" rx="7" fill="#fff" stroke="#cfd4cc"/>
+    <text x="1089" y="54" text-anchor="middle" font-size="13" font-weight="700">Choose JSON</text>
+    <rect x="1180" y="27" width="212" height="44" rx="7" fill="#17211d"/>
+    <text x="1286" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Re-run orientation</text>
+    <line x1="48" y1="92" x2="1392" y2="92" stroke="#cfd4cc"/>
+
+    <!-- Noise intake: supporting, deliberately quiet -->
+    <rect x="48" y="116" width="290" height="732" rx="8" fill="#f8f7f2" stroke="#cfd4cc"/>
+    <text x="72" y="147" font-family="Consolas, monospace" font-size="10" fill="#62706a">01 / INPUT</text>
+    <text x="72" y="181" font-size="23" font-weight="700">Noise Intake</text>
+    <text x="314" y="177" text-anchor="end" font-size="11" fill="#62706a">8 items</text>
+    <line x1="72" y1="198" x2="314" y2="198" stroke="#d7d9d2"/>
+    <g font-size="9" font-weight="800" letter-spacing="0.45" fill="#62706a">
+      <text x="72" y="224" fill="#17211d">ALL</text>
+      <text x="111" y="224">APPLIED</text>
+      <text x="176" y="224">REJECTED</text>
+      <text x="246" y="224">DISPUTED</text>
+    </g>
+    <line x1="72" y1="232" x2="94" y2="232" stroke="#17211d" stroke-width="2"/>
+
     <g font-size="12">
-      <rect x="72" y="250" width="3" height="48" fill="#a9362a"/><text x="86" y="267" font-weight="700">project.completion</text><text x="86" y="286" font-size="10" fill="#62706a">RECEIPT_NOT_PASS</text>
-      <rect x="72" y="315" width="3" height="48" fill="#62706a"/><text x="86" y="332" font-weight="700">imported.text</text><text x="86" y="351" font-size="10" fill="#62706a">TEXT_IS_DATA_NOT_INSTRUCTION</text>
-      <rect x="72" y="380" width="3" height="48" fill="#9a5d00"/><text x="86" y="397" font-weight="700">demo.entrypoint</text><text x="86" y="416" font-size="10" fill="#62706a">CONFLICT_PRESERVED</text>
-      <rect x="72" y="445" width="3" height="48" fill="#0f6d52"/><text x="86" y="462" font-weight="700">release.publication</text><text x="86" y="481" font-size="10" fill="#62706a">AUTHORIZED_CHANGE</text>
-      <rect x="72" y="510" width="3" height="48" fill="#a9362a"/><text x="86" y="527" font-weight="700">project.phase</text><text x="86" y="546" font-size="10" fill="#62706a">STALE_STATE</text>
-      <rect x="72" y="575" width="3" height="48" fill="#a9362a"/><text x="86" y="592" font-weight="700">project.primary</text><text x="86" y="611" font-size="10" fill="#62706a">UNAUTHORIZED_OVERRIDE</text>
+      <rect x="72" y="256" width="3" height="48" fill="#a9362a"/>
+      <text x="88" y="273" font-weight="700">project.completion</text>
+      <text x="88" y="292" font-size="9" fill="#62706a">RECEIPT_NOT_PASS</text>
+
+      <rect x="72" y="321" width="3" height="48" fill="#62706a"/>
+      <text x="88" y="338" font-weight="700">imported.text</text>
+      <text x="88" y="357" font-size="9" fill="#62706a">TEXT_IS_DATA</text>
+
+      <rect x="72" y="386" width="3" height="48" fill="#9a5d00"/>
+      <text x="88" y="403" font-weight="700">demo.entrypoint</text>
+      <text x="88" y="422" font-size="9" fill="#62706a">CONFLICT_PRESERVED</text>
+
+      <rect x="72" y="451" width="3" height="48" fill="#0f6d52"/>
+      <text x="88" y="468" font-weight="700">release.publication</text>
+      <text x="88" y="487" font-size="9" fill="#62706a">AUTHORIZED_CHANGE</text>
+
+      <rect x="72" y="516" width="3" height="48" fill="#a9362a"/>
+      <text x="88" y="533" font-weight="700">project.phase</text>
+      <text x="88" y="552" font-size="9" fill="#62706a">STALE_STATE</text>
+
+      <rect x="72" y="581" width="3" height="48" fill="#a9362a"/>
+      <text x="88" y="598" font-weight="700">project.primary</text>
+      <text x="88" y="617" font-size="9" fill="#62706a">UNAUTHORIZED_OVERRIDE</text>
+    </g>
+    <text x="72" y="807" font-family="Consolas, monospace" font-size="9" fill="#7b8781">5 of 8 items shown</text>
+
+    <!-- Current position: visual and semantic center -->
+    <rect x="362" y="116" width="640" height="570" rx="8" fill="#fff" stroke="#bcc5bc" stroke-width="1.2"/>
+    <text x="392" y="147" font-family="Consolas, monospace" font-size="10" fill="#62706a">02 / ORIENTATION</text>
+    <text x="392" y="190" font-size="38" font-weight="700" letter-spacing="-0.7">Current Position</text>
+    <rect x="876" y="145" width="96" height="30" rx="2" fill="#fae9e6"/>
+    <rect x="876" y="145" width="4" height="30" fill="#a9362a"/>
+    <text x="928" y="164" text-anchor="middle" font-size="10" font-weight="800" fill="#a9362a" letter-spacing="0.6">BLOCKED</text>
+    <line x1="392" y1="211" x2="972" y2="211" stroke="#d7d9d2"/>
+
+    <text x="392" y="253" font-size="26" font-weight="650">Clean-checkout validation failed;</text>
+    <text x="392" y="286" font-size="26" font-weight="650">ZNAK ORIENT is not yet judge-ready.</text>
+    <text x="392" y="316" font-size="11" fill="#62706a">Direction is intact. One material dependency prevents execution.</text>
+
+    <!-- One integrated guide + action module -->
+    <rect x="392" y="340" width="580" height="238" rx="8" fill="#fbfaf6" stroke="#cfd4cc"/>
+    <rect x="392" y="340" width="5" height="238" rx="2" fill="#a9362a"/>
+
+    <!-- ZNAK assistant: code-native editorial vector -->
+    <ellipse cx="479" cy="539" rx="46" ry="7" fill="#dfe2dc"/>
+    <path d="M454 430c0-25 13-40 30-40s30 15 30 40v88h-60Z" fill="#fff" stroke="#17211d" stroke-width="2.4"/>
+    <path d="M456 431c6 5 16 7 28 7s22-2 28-7" fill="none" stroke="#d7d9d2" stroke-width="1.5"/>
+    <circle cx="484" cy="382" r="27" fill="#fff" stroke="#17211d" stroke-width="2.4"/>
+    <path d="M460 378c2-18 13-28 27-28 11 0 20 6 25 17-8-5-17-7-27-7-9 0-17 6-25 18Z" fill="#17211d"/>
+    <circle cx="475" cy="383" r="1.8" fill="#17211d"/>
+    <circle cx="493" cy="383" r="1.8" fill="#17211d"/>
+    <path d="M476 394c5 3 11 3 16 0" fill="none" stroke="#17211d" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M455 444c-14 11-22 26-26 44" fill="none" stroke="#17211d" stroke-width="4" stroke-linecap="round"/>
+    <path d="M511 443c22 2 34-10 51-25" fill="none" stroke="#17211d" stroke-width="4" stroke-linecap="round"/>
+    <path d="M558 418l11-9m-9 10 14-1m-15-1 5-13" fill="none" stroke="#17211d" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M468 518v17m31-17v17" fill="none" stroke="#17211d" stroke-width="4" stroke-linecap="round"/>
+    <path d="m484 459 10 13-10 13-10-13Z" fill="#a9362a"/>
+    <path d="M480 469h8M484 465v16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+
+    <!-- Directional gesture lands on the single action -->
+    <path d="M574 418h44" fill="none" stroke="#a9362a" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 5"/>
+    <path d="m613 413 7 5-7 5" fill="none" stroke="#a9362a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <text x="622" y="375" font-size="10" font-weight="800" fill="#a9362a" letter-spacing="0.75">ZNAK ASSISTANT · BLOCKED</text>
+    <text x="622" y="401" font-size="16" font-weight="700">Hold at the blocker.</text>
+    <text x="622" y="422" font-size="11" fill="#62706a">The disputed claim cannot drive action.</text>
+
+    <rect x="602" y="445" width="346" height="109" rx="5" fill="#e9eff9"/>
+    <rect x="602" y="445" width="4" height="109" fill="#2056a8"/>
+    <text x="622" y="469" font-size="9" font-weight="800" fill="#2056a8" letter-spacing="0.65">ONE JUSTIFIED NEXT ACTION</text>
+    <text x="622" y="494" font-size="14" font-weight="700">Record one AUTHORIZED resolution</text>
+    <text x="622" y="514" font-size="14" font-weight="700">for demo.entrypoint.</text>
+    <text x="622" y="538" font-family="Consolas, monospace" font-size="9" fill="#2056a8">success: conflict_resolved · AUTHORIZED</text>
+
+    <line x1="392" y1="607" x2="972" y2="607" stroke="#d7d9d2"/>
+    <g font-size="9" font-weight="800" fill="#62706a" letter-spacing="0.55">
+      <text x="392" y="630">GOAL</text>
+      <text x="594" y="630">EVIDENCE BASE</text>
+      <text x="801" y="630">MODE</text>
+    </g>
+    <g font-size="11" font-weight="650">
+      <text x="392" y="652">Judge-ready vertical slice</text>
+      <text x="594" y="652">Checkpoint + state changes</text>
+      <text x="801" y="652">Deterministic · offline</text>
     </g>
 
-    <rect x="379" y="120" width="612" height="616" rx="8" fill="#fff" stroke="#d7d9d2"/>
-    <text x="409" y="151" font-family="Consolas, monospace" font-size="10" fill="#62706a">02</text>
-    <text x="409" y="188" font-size="36" font-weight="700">Current Position</text>
-    <rect x="882" y="145" width="79" height="28" fill="#fae9e6"/><rect x="882" y="145" width="3" height="28" fill="#a9362a"/><text x="922" y="163" text-anchor="middle" font-size="10" font-weight="800" fill="#a9362a">BLOCKED</text>
-    <line x1="409" y1="207" x2="961" y2="207" stroke="#d7d9d2"/>
-    <text x="409" y="253" font-size="27" font-weight="650">Clean-checkout validation failed;</text>
-    <text x="409" y="288" font-size="27" font-weight="650">ZNAK ORIENT is not yet judge-ready.</text>
-    <text x="409" y="327" font-size="10" font-weight="800" fill="#62706a">GOAL</text>
-    <text x="409" y="348" font-size="13">Deliver a judge-ready local ZNAK ORIENT vertical slice.</text>
-    <rect x="409" y="369" width="552" height="92" rx="7" fill="#fbfaf6" stroke="#e9eae5"/>
-    <ellipse cx="450" cy="442" rx="25" ry="4" fill="#d9dcd6"/>
-    <path d="M439 411c0-8 5-13 12-13s12 5 12 13v28h-24Z" fill="#fff" stroke="#17211d" stroke-width="2"/>
-    <circle cx="451" cy="388" r="12" fill="#fff" stroke="#17211d" stroke-width="2"/>
-    <path d="M446 388h1m8 0h1m-9 6c3 2 6 2 9 0M463 408c9 0 12-6 17-12m-2 0 5-5m-3 6 7-1" fill="none" stroke="#17211d" stroke-width="2" stroke-linecap="round"/>
-    <path d="M472 379c6 3 9 7 10 12m-7-19c10 4 15 10 17 19" fill="none" stroke="#a9362a" stroke-width="2" stroke-linecap="round"/>
-    <path d="m451 406 4 6-4 6-4-6Z" fill="#a9362a"/>
-    <text x="505" y="392" font-size="10" font-weight="800" fill="#a9362a">ORIENTATION GUIDE</text>
-    <text x="505" y="415" font-size="15" font-weight="700">Holding at the blocker</text>
-    <text x="505" y="436" font-size="10" fill="#62706a">Record one AUTHORIZED resolution for demo.entrypoint</text>
-    <text x="505" y="451" font-size="10" fill="#62706a">that explicitly supersedes the competing claims.</text>
-    <rect x="409" y="478" width="552" height="128" fill="#e9eff9"/>
-    <rect x="409" y="478" width="4" height="128" fill="#2056a8"/>
-    <text x="431" y="504" font-size="10" font-weight="800" fill="#2056a8">ONE JUSTIFIED NEXT ACTION</text>
-    <text x="431" y="531" font-size="16" font-weight="700">Record one AUTHORIZED resolution for demo.entrypoint</text>
-    <text x="431" y="552" font-size="16" font-weight="700">that explicitly supersedes the competing claims.</text>
-    <text x="431" y="576" font-size="11" fill="#62706a">Material disputed claims cannot drive execution.</text>
-    <text x="431" y="596" font-family="Consolas, monospace" font-size="9" fill="#2056a8">success: conflict_resolved · AUTHORIZED</text>
+    <!-- Recovery card: important, but subordinate to Current Position -->
+    <rect x="1026" y="116" width="366" height="570" rx="8" fill="#17211d"/>
+    <text x="1054" y="147" font-family="Consolas, monospace" font-size="10" fill="#aeb9b3">04 / RECOVERY</text>
+    <text x="1054" y="181" font-size="24" font-weight="700" fill="#fff">Recovery Card</text>
+    <rect x="1326" y="140" width="38" height="38" rx="6" fill="none" stroke="#52605a"/>
+    <rect x="1342" y="155" width="10" height="10" rx="1" fill="none" stroke="#fff"/>
+    <path d="M1349 155v-4h-11v11h4" fill="none" stroke="#fff"/>
+    <line x1="1054" y1="198" x2="1364" y2="198" stroke="#3c4742"/>
+    <rect x="1054" y="220" width="310" height="38" fill="none" stroke="#52605a"/>
+    <text x="1209" y="243" text-anchor="middle" font-size="9" font-weight="800" fill="#d6ded9" letter-spacing="0.5">DERIVED — NOT SOURCE OF TRUTH</text>
 
-    <rect x="1007" y="120" width="383" height="616" rx="8" fill="#17211d"/>
-    <text x="1035" y="151" font-family="Consolas, monospace" font-size="10" fill="#aeb9b3">04</text>
-    <text x="1035" y="180" font-size="24" font-weight="700" fill="#fff">Recovery Card</text>
-    <rect x="1324" y="141" width="38" height="38" rx="6" fill="none" stroke="#52605a"/>
-    <rect x="1340" y="156" width="10" height="10" rx="1" fill="none" stroke="#fff"/>
-    <path d="M1347 156v-4h-11v11h4" fill="none" stroke="#fff"/>
-    <line x1="1035" y1="197" x2="1362" y2="197" stroke="#3c4742"/>
-    <rect x="1035" y="220" width="327" height="38" fill="none" stroke="#52605a"/><text x="1198" y="243" text-anchor="middle" font-size="10" font-weight="800" fill="#d6ded9">DERIVED — NOT SOURCE OF TRUTH</text>
-    <text x="1035" y="291" font-size="10" font-weight="800" fill="#9daaa4">POSITION</text>
-    <text x="1035" y="316" font-size="13" fill="#fff">Validation failed; completion unverified.</text>
-    <line x1="1035" y1="340" x2="1362" y2="340" stroke="#36413c"/>
-    <text x="1035" y="370" font-size="10" font-weight="800" fill="#9daaa4">GOAL</text>
-    <text x="1035" y="395" font-size="13" fill="#fff">Deliver the local vertical slice.</text>
-    <line x1="1035" y1="420" x2="1362" y2="420" stroke="#36413c"/>
-    <text x="1035" y="450" font-size="10" font-weight="800" fill="#9daaa4">VOLTAGE</text><text x="1035" y="475" font-size="13" fill="#fff">BLOCKED</text>
-    <line x1="1035" y1="500" x2="1362" y2="500" stroke="#36413c"/>
-    <text x="1035" y="530" font-size="10" font-weight="800" fill="#9daaa4">NEXT</text>
-    <text x="1035" y="555" font-size="13" fill="#fff">Resolve the entrypoint conflict</text><text x="1035" y="574" font-size="13" fill="#fff">with an authorized state change.</text>
+    <text x="1054" y="292" font-size="9" font-weight="800" fill="#9daaa4" letter-spacing="0.6">POSITION</text>
+    <text x="1054" y="317" font-size="13" fill="#fff">Validation failed; completion unverified.</text>
+    <line x1="1054" y1="341" x2="1364" y2="341" stroke="#36413c"/>
+    <text x="1054" y="371" font-size="9" font-weight="800" fill="#9daaa4" letter-spacing="0.6">GOAL</text>
+    <text x="1054" y="396" font-size="13" fill="#fff">Deliver the local vertical slice.</text>
+    <line x1="1054" y1="420" x2="1364" y2="420" stroke="#36413c"/>
+    <text x="1054" y="450" font-size="9" font-weight="800" fill="#9daaa4" letter-spacing="0.6">VOLTAGE</text>
+    <rect x="1054" y="464" width="82" height="27" fill="#422b27"/>
+    <text x="1095" y="482" text-anchor="middle" font-size="10" font-weight="800" fill="#f3b7ae">BLOCKED</text>
+    <line x1="1054" y1="515" x2="1364" y2="515" stroke="#36413c"/>
+    <text x="1054" y="545" font-size="9" font-weight="800" fill="#9daaa4" letter-spacing="0.6">NEXT</text>
+    <text x="1054" y="571" font-size="13" fill="#fff">Resolve demo.entrypoint</text>
+    <text x="1054" y="590" font-size="13" fill="#fff">with authorized evidence.</text>
+    <text x="1054" y="648" font-family="Consolas, monospace" font-size="9" fill="#7f8c86">recovery view · read only</text>
 
-    <rect x="379" y="752" width="1011" height="206" rx="8" fill="#fff" stroke="#d7d9d2"/>
-    <text x="409" y="782" font-family="Consolas, monospace" font-size="10" fill="#62706a">03</text>
-    <text x="409" y="812" font-size="23" font-weight="700">Conflict and Unknowns</text>
-    <line x1="409" y1="829" x2="1362" y2="829" stroke="#d7d9d2"/>
-    <text x="409" y="861" font-size="10" font-weight="800">OPEN CONFLICT</text><text x="920" y="861" font-size="10" font-weight="800">CRITICAL UNKNOWN</text>
-    <text x="409" y="890" font-size="13" font-weight="700">demo.entrypoint</text><text x="920" y="890" font-size="13" font-weight="700">project.completion.failure_cause</text>
-    <text x="409" y="912" font-size="11" fill="#62706a">Two authorized records; neither supersedes.</text><text x="920" y="912" font-size="11" fill="#62706a">Corrective proof remains UNKNOWN.</text>
+    <!-- Evidence strip -->
+    <rect x="362" y="710" width="1030" height="138" rx="8" fill="#fff" stroke="#cfd4cc"/>
+    <text x="392" y="741" font-family="Consolas, monospace" font-size="10" fill="#62706a">03 / CONFLICTS + 05 / SOURCES</text>
+    <text x="392" y="774" font-size="21" font-weight="700">What blocks movement — and why</text>
+    <line x1="392" y1="790" x2="1362" y2="790" stroke="#d7d9d2"/>
+    <rect x="392" y="807" width="3" height="22" fill="#9a5d00"/>
+    <text x="408" y="817" font-size="9" font-weight="800" fill="#62706a">OPEN CONFLICT</text>
+    <text x="408" y="836" font-size="12" font-weight="700">demo.entrypoint · two authorized records; neither supersedes</text>
+    <rect x="872" y="807" width="3" height="22" fill="#a9362a"/>
+    <text x="888" y="817" font-size="9" font-weight="800" fill="#62706a">CRITICAL UNKNOWN</text>
+    <text x="888" y="836" font-size="12" font-weight="700">Corrective proof remains UNKNOWN</text>
 
-    <rect x="48" y="974" width="1342" height="102" rx="8" fill="#fff" stroke="#d7d9d2"/>
-    <text x="72" y="1004" font-family="Consolas, monospace" font-size="10" fill="#62706a">05</text>
-    <text x="72" y="1036" font-size="23" font-weight="700">Source Evidence</text>
+    <!-- Editorial footer -->
+    <text x="48" y="878" font-family="Consolas, monospace" font-size="9" fill="#7b8781">X30 · direction over recall · explicit unknown over false certainty</text>
+    <text x="1392" y="878" text-anchor="end" font-family="Consolas, monospace" font-size="9" fill="#7b8781">1440 × 900 · design candidate 0.3C</text>
   </g>
 </svg>

@@ -23,7 +23,7 @@ The deterministic result:
 - applies the authorized publication gate;
 - recovers the current position as “not yet judge-ready”;
 - returns one safe conflict-resolution step with sources and a closed success-condition type;
-- shows a small code-native animated guide whose state follows voltage and whose cue repeats that exact selected step;
+- shows a code-native animated ZNAK assistant whose finite state-specific cue points to the one canonical selected step without duplicating it;
 - derives a Recovery Card that cannot write back into canonical state.
 
 `run_receipt.status = PASS` verifies only the orientation transform and its stated invariants. It explicitly does not claim project completion or repair the imported failed validation.
@@ -52,12 +52,12 @@ Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Use **Re-run orientation** 
 Expected command markers:
 
 ```text
-Ran 104 tests ... OK
+Ran 105 tests ... OK
 ORIENTATION_PASS checkpoint=<deterministic-id> output=artifacts\demo-result.json
 ZNAK_ORIENT_LOCAL http://127.0.0.1:8765
 ```
 
-The retained repository validation evidence is documented in `docs/VALIDATION_2026-07-19.md`. The local browser-workflow receipt is `artifacts/browser-qa.json`; the 34.92-second unpublished capture is `artifacts/znak-orient-demo.webm`.
+The latest refinement validation evidence is documented in `docs/VALIDATION_REFINEMENT_2026-07-19.md`; `docs/VALIDATION_2026-07-19.md` remains the historical receipt for the earlier candidate it names. The local browser-workflow receipt is `artifacts/browser-qa.json`; the 35.44-second unpublished capture is `artifacts/znak-orient-demo.webm`.
 
 ## Commands
 
@@ -118,6 +118,7 @@ docs/                            architecture, demo, submission, access, audits,
 - [Privacy, security, licensing, and claims audit](docs/AUDIT_2026-07-19.md)
 - [Visual fidelity ledger](docs/FIDELITY_LEDGER.md)
 - [Local video and browser QA receipt](docs/VIDEO_RECORDING.md)
+- [Latest assistant-refinement clean-checkout receipt](docs/VALIDATION_REFINEMENT_2026-07-19.md)
 - [Repository discovery preflight](docs/PREFLIGHT_2026-07-19.md)
 
 ## License

@@ -18,6 +18,27 @@ function showToast(message) {
   state.toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 2600);
 }
 
+function clearError() {
+  const error = byId("package-error");
+  error.hidden = true;
+  error.textContent = "";
+}
+
+function showError(message) {
+  const error = byId("package-error");
+  error.textContent = message;
+  error.hidden = false;
+  showToast(message);
+}
+
+function replayGuideMotion() {
+  const guide = byId("orientation-guide");
+  guide.classList.remove("motion-cue");
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => guide.classList.add("motion-cue"));
+  });
+}
+
 function displayValue(value) {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
@@ -31,11 +52,19 @@ function goalFrom(checkpoint) {
   return lamp ? displayValue(lamp.value) : "UNKNOWN";
 }
 
+function formatSuccessCondition(condition) {
+  return Object.entries(condition)
+    .map(([name, value]) => `${name.replaceAll("_", " ")}=${displayValue(value)}`)
+    .join(" · ");
+}
+
 function renderIntake() {
   const list = byId("intake-list");
   list.replaceChildren();
   const items = state.result.intake.filter((item) => state.filter === "ALL" || item.status === state.filter);
-  setText("intake-count", `${items.length} ${items.length === 1 ? "item" : "items"}`);
+  const total = state.result.intake.length;
+  const count = state.filter === "ALL" ? `${total} ${total === 1 ? "item" : "items"}` : `${items.length} of ${total} items`;
+  setText("intake-count", count);
   items.forEach((item) => {
     const row = node("li", "intake-item");
     row.dataset.status = item.status;
@@ -59,7 +88,7 @@ function renderCurrent(result) {
     UNKNOWN: "Waiting for evidence",
   };
   setText("package-name", result.package_id);
-  setText("checkpoint-hash", checkpoint.integrity.value.slice(0, 18) + "…");
+  setText("checkpoint-hash", `checkpoint ${checkpoint.integrity.value.slice(0, 18)}…`);
   setText("voltage", checkpoint.voltage);
   byId("voltage").dataset.voltage = checkpoint.voltage;
   setText("position-statement", checkpoint.city_position);
@@ -69,10 +98,13 @@ function renderCurrent(result) {
   byId("orientation-guide").dataset.voltage = checkpoint.voltage;
   setText("assistant-state", guideState[checkpoint.voltage] || guideState.UNKNOWN);
   setText("assistant-cue", checkpoint.primary_next_step.instruction);
-  setText("next-step-title", checkpoint.primary_next_step.instruction);
   setText("next-step-reason", checkpoint.primary_next_step.reason);
   setText("next-step-sources", `Sources ${checkpoint.primary_next_step.source_ids.join(" · ")}`);
-  setText("success-condition", JSON.stringify(checkpoint.primary_next_step.success_condition));
+  const successCondition = checkpoint.primary_next_step.success_condition;
+  setText("success-condition", `success · ${formatSuccessCondition(successCondition)}`);
+  byId("success-condition").dataset.machineValue = JSON.stringify(successCondition);
+  setText("orientation-status", `${checkpoint.voltage}. Next action: ${checkpoint.primary_next_step.instruction}`);
+  replayGuideMotion();
 }
 
 function renderBlockers(result) {
@@ -184,25 +216,32 @@ function render(result) {
 
 async function requestResult(url, options, announce = true) {
   byId("rerun").disabled = true;
+  byId("choose-package").disabled = true;
+  document.querySelector("main").setAttribute("aria-busy", "true");
+  clearError();
   try {
     const response = await fetch(url, options);
     const body = await response.json();
     if (!response.ok) throw new Error(body.detail || body.error || `HTTP ${response.status}`);
     render(body);
-    if (announce) showToast("Orientation recovered from source-backed evidence.");
+    if (announce) showToast(`Orientation updated: ${body.checkpoint.voltage}. One next action selected.`);
   } catch (error) {
-    showToast(`Orientation failed: ${error.message}`);
+    showError(`Orientation failed: ${error.message}`);
   } finally {
     byId("rerun").disabled = false;
+    byId("choose-package").disabled = false;
+    document.querySelector("main").removeAttribute("aria-busy");
   }
 }
 
 byId("rerun").addEventListener("click", () => requestResult("/api/demo"));
+byId("choose-package").addEventListener("click", () => byId("package-file").click());
 byId("package-file").addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;
   if (file.size > 1_000_000) {
-    showToast("Package rejected: the local JSON limit is 1 MB.");
+    showError("Package rejected: the local JSON limit is 1 MB.");
+    event.target.value = "";
     return;
   }
   await requestResult("/api/orient", {
@@ -210,11 +249,16 @@ byId("package-file").addEventListener("change", async (event) => {
     headers: { "Content-Type": "application/json" },
     body: await file.text(),
   });
+  event.target.value = "";
 });
 document.querySelectorAll(".filter").forEach((button) => {
   button.addEventListener("click", () => {
     state.filter = button.dataset.filter;
-    document.querySelectorAll(".filter").forEach((item) => item.classList.toggle("active", item === button));
+    document.querySelectorAll(".filter").forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle("active", selected);
+      item.setAttribute("aria-pressed", String(selected));
+    });
     if (state.result) renderIntake();
   });
 });

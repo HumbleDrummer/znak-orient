@@ -1,6 +1,6 @@
 # Narrated demo script — 2 minutes 35 seconds
 
-Recording status: the retained local `artifacts/znak-orient-demo.webm` is a 34.92-second silent interaction/evidence capture of the same workflow. This longer script is the proposed narration for a future published submission video; no public upload is claimed.
+Recording status: the retained local `artifacts/znak-orient-demo.webm` is a 35.44-second silent interaction/evidence capture of the same workflow. This longer script is the proposed narration for a future published submission video; no public upload is claimed.
 
 ## 00:00–00:20 — Problem
 
@@ -18,7 +18,7 @@ Point to the colored intake dispositions. Click **Rejected** to show five reject
 
 “The new success claim does not win. Its validation receipt is FAIL, so the current position remains: clean-checkout validation failed; the project is not judge-ready. FACT confidence and decision authority are separate.”
 
-Point to `BLOCKED`, the source-backed position, and the goal. The animated guide changes to the blocker state and repeats the exact selected action; it is a presentation aid, not a second source of direction.
+Point to `BLOCKED`, the source-backed position, and the goal. The integrated ZNAK assistant anchors at the blocker, points to the single selected action, and then becomes still; it is a presentation aid, not a second source of direction.
 
 ## 01:20–01:50 — Conflict, unknown, and one step
 

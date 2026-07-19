@@ -58,7 +58,45 @@ class ServerTests(unittest.TestCase):
         with self.get("/styles.css") as response:
             styles = response.read().decode("utf-8")
             self.assertIn("prefers-reduced-motion", styles)
-            self.assertIn(".guide-character, .guide-arm, .guide-signal", styles)
+            self.assertIn(".guide-character, .guide-arm, .guide-marker", styles)
+
+    def test_frontend_direction_accessibility_and_motion_contract(self):
+        with self.get("/") as response:
+            body = response.read().decode("utf-8")
+        self.assertLess(body.index('id="current-position"'), body.index('id="noise-intake"'))
+        self.assertIn('<button class="file-control" id="choose-package" type="button">', body)
+        self.assertIn('data-filter="ALL" aria-pressed="true"', body)
+        self.assertIn('id="orientation-status" role="status"', body)
+        self.assertIn('<th scope="col">Source</th>', body)
+        self.assertEqual(1, body.count('id="assistant-cue"'))
+        self.assertNotIn('id="next-step-title"', body)
+
+        with self.get("/app.js") as response:
+            script = response.read().decode("utf-8")
+        self.assertIn('setText("orientation-status",', script)
+        self.assertIn('item.setAttribute("aria-pressed", String(selected))', script)
+        self.assertNotIn('setText("next-step-title",', script)
+
+        with self.get("/styles.css") as response:
+            styles = response.read().decode("utf-8")
+        self.assertIn(".orientation-guide.motion-cue", styles)
+        for voltage, animation in {
+            "BLOCKED": "guide-anchor",
+            "FLOWING": "guide-step",
+            "WEAK": "guide-lean",
+            "BROKEN": "guide-correct",
+            "UNKNOWN": "guide-consider",
+        }.items():
+            self.assertIn(
+                f'.orientation-guide.motion-cue[data-voltage="{voltage}"] .guide-character {{ animation: {animation}',
+                styles,
+            )
+            self.assertIn(
+                f'.orientation-guide[data-voltage="{voltage}"] .guide-marker-{voltage.lower()}',
+                styles,
+            )
+        self.assertNotIn("infinite", styles)
+        self.assertNotIn("linear-gradient", styles)
 
     def test_demo_api_returns_scoped_pass_and_blocked_project_position(self):
         with self.get("/api/demo") as response:

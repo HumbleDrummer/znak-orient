@@ -18,7 +18,7 @@ Long project histories often preserve every sentence while losing the decisions,
 
 ## What it does
 
-The application imports a closed JSON evidence package, rejects duplicate keys and ambiguous materiality, normalizes structured observations, rejects stale or unauthorized changes, enforces causal source/receipt times, requires subject-scoped value-bound validation for facts, preserves incompatible claims as disputes, retains immutable receipt ID/hash pointers across fallback, and produces one canonical orientation result. A responsive local UI shows Noise Intake, Current Position, Conflict and Unknowns, Recovery Card, Source Evidence, and Validation Receipt. A small animated orientation guide reacts to voltage and repeats the exact selected next step without inventing another one.
+The application imports a closed JSON evidence package, rejects duplicate keys and ambiguous materiality, normalizes structured observations, rejects stale or unauthorized changes, enforces causal source/receipt times, requires subject-scoped value-bound validation for facts, preserves incompatible claims as disputes, retains immutable receipt ID/hash pointers across fallback, and produces one canonical orientation result. A responsive local UI shows Noise Intake, Current Position, Conflict and Unknowns, Recovery Card, Source Evidence, and Validation Receipt. A small animated ZNAK assistant reacts to voltage and points to the single canonical next step without inventing or duplicating another one.
 
 ## How we built it
 

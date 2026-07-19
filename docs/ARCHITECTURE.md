@@ -68,7 +68,7 @@ The safe claim is “imported instruction text is inert by construction,” not 
 
 ## Orientation guide
 
-The animated figure is a presentation-only projection. Its label is selected from a closed voltage-to-copy map; its cue is the exact `primary_next_step.instruction`, never a second recommendation. Color follows the semantic voltage token. CSS motion is disabled under `prefers-reduced-motion`, and the guide has no write path, model call, persistence, or authority.
+The animated figure is a presentation-only projection inside the canonical next-step module. Its label is selected from a closed voltage-to-copy map, while the module's only full action node is the exact `primary_next_step.instruction`, never a second recommendation. Color and the single visible marker follow the semantic voltage token. Each voltage has one short finite motion cue, replayed only after a new result; all CSS motion is disabled under `prefers-reduced-motion`. The guide has no write path, model call, persistence, or authority.
 
 ## Persistence boundary
 
