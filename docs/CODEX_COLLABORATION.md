@@ -2,11 +2,11 @@
 
 ## Principal implementation task
 
-- Codex Session ID for `/feedback`: `[retained outside public repository]`
+- Codex Session ID for `/feedback`: retained in the private submission handoff, not published in this repository
 - application: Codex for Windows
 - requested implementation model/mode: `gpt-5.6-sol`, `xhigh`
 - date: 2026-07-19, Europe/Warsaw
-- `/feedback` submission status: `NOT_EXECUTED`; the ID is retained for the operator to submit feedback in Codex
+- `/feedback` submission status: `NOT_EXECUTED`; the operator must paste the retained principal ID into the Devpost form
 
 ## How Codex was used
 
@@ -20,8 +20,9 @@
 8. Added the requested code-native animated ZNAK assistant, integrated it with the one canonical action, and verified finite voltage-specific motion, one state marker, keyboard focus, atomic live status, current-first semantic order, 320px reflow, and reduced-motion behavior.
 9. Retained desktop/mobile screenshots, a 47.04-second local workflow capture, a 39/39 machine-readable browser QA receipt, a fidelity ledger, exact current-candidate clean-checkout evidence in `VALIDATION_FINAL_2026-07-19.md`, and submission drafts.
 10. Used independent maximum-effort reducer/security/submission audits, fixed their reproducible findings, and reran the regression suite.
-11. Kept publication, deployment, Devpost submission, external messages, paid APIs, and real model calls outside the repository blocked behind explicit user confirmation.
+11. Kept publication, deployment, Devpost submission, external messages, paid APIs, and real model calls behind explicit user confirmation; the user later authorized only the GitHub publication step.
+12. Published the sanitized judging repository, verified a clean remote clone, and ran the deterministic suite in GitHub Actions on Windows, Ubuntu, and macOS.
 
 ## Human control points
 
-The local workflow video was recorded under the build authorization and remains an unpublished artifact. The user remains the authority for publishing that video, publishing a GitHub repository, deploying a public demo, submitting Devpost, and sending `/feedback`. No secret, private source bundle, or external account action was used.
+The local workflow video was recorded under the build authorization and remains an unpublished artifact. The user explicitly authorized this GitHub repository publication. The user remains the authority for recording/publishing a compliant narrated video, deploying a public demo, submitting Devpost, and sending `/feedback`. No secret or private source bundle was published.

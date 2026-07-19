@@ -11,7 +11,7 @@ Submission deadline: **July 21, 2026 at 5:00 pm PDT**. This checklist is an evid
 - GitHub owner: `HumbleDrummer`
 - intended public repository: `https://github.com/HumbleDrummer/znak-orient`
 - license: MIT
-- principal Codex Session ID: `[retained outside public repository]`
+- principal Codex Session ID: `READY_FOR_FORM / retained outside public repository`
 
 ## Requirement status
 
@@ -19,16 +19,16 @@ Submission deadline: **July 21, 2026 at 5:00 pm PDT**. This checklist is an evid
 | --- | --- | --- |
 | Built with Codex and GPT-5.6 | `READY / DOCUMENTED` | README and `CODEX_COLLABORATION.md` describe the `gpt-5.6-sol` implementation workflow and human decisions. |
 | Developer Tools category | `READY` | Category is named in the README and Devpost draft. |
-| Working, consistently runnable project | `LOCAL_PASS / REMOTE_PENDING` | 121-test local suite, deterministic CLI, clean-clone receipt, and browser QA are retained; remote clone and CI must run after the first push. |
-| Repository URL for judging | `PUBLICATION_AUTHORIZED / PENDING_FIRST_PUSH` | Target above is reserved for the first public push. |
+| Working, consistently runnable project | `LOCAL_PASS / REMOTE_PASS` | 121-test local suite and deterministic CLI pass; the current-main workflow runs on Windows, Ubuntu, and macOS. |
+| Repository URL for judging | `PUBLIC / VERIFIED` | `https://github.com/HumbleDrummer/znak-orient`; remote clone and visibility were checked after publication. |
 | Relevant license | `READY` | MIT `LICENSE` is tracked. |
 | README collaboration narrative | `READY` | README summarizes acceleration, human decisions, and Codex/GPT-5.6 contribution; detailed record is linked. |
-| Installation and supported platform | `READY` | Python 3.11+, no runtime dependencies or build step; Windows launcher plus exact cross-platform commands. Windows is the locally executed platform. |
+| Installation and supported platform | `READY / CI_VERIFIED` | Python 3.11+, no runtime dependencies or build step; Windows launcher plus exact cross-platform commands. Windows was locally executed; Windows, Ubuntu, and macOS passed GitHub CI. |
 | Judge test path without rebuilding | `READY_LOCAL` | Clone, run `unittest`, run deterministic demo, start loopback UI. No package build, credential, account, paid API, or model call is required. |
 | Text description | `READY_DRAFT` | `DEVPOST_DRAFT.md` contains the English submission copy. |
 | Demonstration video under 3 minutes with audio | `BLOCKED / NOT_COMPLIANT_YET` | Retained WebM is a silent local evidence capture. Record narration, upload publicly to YouTube, and add its URL. |
 | Public YouTube URL | `BLOCKED / NOT_PUBLISHED` | Requires account-side upload after the compliant narrated video exists. |
-| `/feedback` Codex Session ID | `READY_FOR_FORM` | Principal ID is recorded above and in `CODEX_COLLABORATION.md`; `/feedback` itself is not claimed as submitted. |
+| `/feedback` Codex Session ID | `READY_FOR_FORM` | Principal ID is retained in the private submission handoff; `/feedback` itself is not claimed as submitted. |
 | Devpost registration and final submission | `UNKNOWN / NOT_EXECUTED` | Operator must confirm `Join Hackathon`, complete the account fields, accept the rules, and submit before the deadline. |
 | Public hosted demo | `OPTIONAL / NOT_DEPLOYED` | Official rules require working access; this developer tool is directly runnable from the public repository without rebuilding. No hosted deployment is claimed. |
 

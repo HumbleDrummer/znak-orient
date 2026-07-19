@@ -1,36 +1,30 @@
 # Repository and judging access
 
-## Current verified local repository
+## Public judging repository
 
-```text
-<authorized-workspace>\outputs\znak-orient
-```
-
+- URL: `https://github.com/HumbleDrummer/znak-orient`
+- owner: `HumbleDrummer`
+- visibility: `PUBLIC`
 - branch: `main`
-- remote: none
-- publication status: `BLOCKED_BY_EXPLICIT_CONFIRMATION_GATE`
+- remote: `origin = https://github.com/HumbleDrummer/znak-orient.git`
 
-Judges with filesystem access can clone the repository directly:
+Judges can clone and execute the project directly:
 
 ```powershell
-git clone "PATH\TO\znak-orient" znak-orient-judge
+git clone https://github.com/HumbleDrummer/znak-orient.git znak-orient-judge
 Set-Location znak-orient-judge
 python -m unittest discover -s tests -v
 python -m znak_orient verify-demo --input demo/evidence-package.json --output artifacts/demo-result.json
 python -m znak_orient serve --host 127.0.0.1 --port 8765
 ```
 
-A source archive generated from the final Git HEAD is supplied beside the repository as `znak-orient-source.zip`.
+On Windows, `start-znak-orient.bat` provides the same loopback-only start path without a build step.
 
-## GitHub handoff after explicit confirmation
+## Verified publication baseline
 
-No GitHub repository, remote, issue, release, or deployment has been created. After the user explicitly approves publication:
+- branch under test: current `main`
+- GitHub Actions: [CI workflow](https://github.com/HumbleDrummer/znak-orient/actions), executing on Windows, Ubuntu, and macOS with Python 3.11
+- privacy gate: no reachable `main` commit contains the removed local Windows user path or the private submission Session ID after the pre-publication history rewrite
+- exact final commit, tree, workflow-run URL, remote-clone output, and archive hash: retained in the local publication handoff generated after the final CI run
 
-1. create the intended GitHub repository under the user-selected owner and visibility;
-2. add its exact URL as `origin`;
-3. push `main`;
-4. clone that remote into a fresh short path;
-5. rerun the three judging commands above;
-6. record the remote URL, commit, command outputs, and access visibility in a new validation receipt.
-
-Do not substitute an invented URL in Devpost. Until the gated steps run, the GitHub field remains `BLOCKED / NOT_PUBLISHED`.
+The receipt-bearing documentation commit is verified by its own GitHub Actions run and the separate final handoff receipt. A public hosted deployment is not claimed or required to run this developer tool; the application remains loopback-only.

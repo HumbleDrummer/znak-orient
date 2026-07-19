@@ -50,7 +50,7 @@ Candidate commit `3fe426b90029fcd65eb5572b1724e78ee564a089` and tree `bed0a5702b
 
 | ID | External or broader claim | Current status | Current evidence | Evidence required before status may change |
 | --- | --- | --- | --- | --- |
-| E01 | GitHub judging repository exists and is accessible. | `BLOCKED / NOT_PUBLISHED / USER_GATED` | `docs/REPOSITORY_ACCESS.md`; Devpost repository field remains a blocked placeholder | Explicit user approval, real repository URL, owner/visibility, pushed final commit, and read-access verification receipt. |
+| E01 | GitHub judging repository exists and is accessible. | `PUBLIC / REMOTE_PASS` | `https://github.com/HumbleDrummer/znak-orient`; `docs/GITHUB_PUBLICATION_2026-07-19.md`; current-main GitHub Actions workflow on Windows, Ubuntu, and macOS | Applies to the named repository and tested commits only; it does not prove public deployment, video publication, `/feedback`, or Devpost submission. |
 | E02 | A public demo is deployed. | `BLOCKED / NOT_DEPLOYED / USER_GATED` | Only `http://127.0.0.1:8765` is documented and tested | Explicit user approval, public deployment URL, deployment identity, and independent smoke/access checks. |
 | E03 | Devpost has been submitted. | `NOT_EXECUTED / DRAFT_ONLY / USER_GATED` | `docs/DEVPOST_DRAFT.md` is explicitly a draft | Submission confirmation tied to the final repository, demo, and video URLs. |
 | E04 | The demo video is published. | `NOT_EXECUTED / NOT_PUBLISHED / USER_GATED` | Local WebM exists; no public URL is recorded | Explicit user approval, upload completion, public or judge-accessible URL, and playback/access check. |

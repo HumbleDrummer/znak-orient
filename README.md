@@ -4,19 +4,20 @@
 
 ZNAK ORIENT is a local, deterministic developer tool for recovering project direction from partial, stale, duplicated, contradictory, and untrusted evidence. It returns a source-backed current position, explicit conflicts and unknowns, exactly one corrective next step, a machine-verifiable success condition, a canonical checkpoint, and a compact non-authoritative Recovery Card.
 
-Current scope: `IMPLEMENTED_AND_LOCALLY_EXECUTED` competition MVP. This is not a claim of production readiness, canonical X30 ratification, external source authenticity, GitHub publication, public deployment, Devpost submission, or published video.
+Current scope: `IMPLEMENTED_TESTED_PUBLIC_JUDGING_REPOSITORY` competition MVP. This is the public GitHub judging repository; it is not a claim of production readiness, canonical X30 ratification, external source authenticity, public hosted deployment, Devpost submission, or published video.
 
 ![ZNAK ORIENT desktop interface](artifacts/ui-desktop-1440x900.png)
 
 ## OpenAI Build Week
 
 - category: **Developer Tools**
-- public-repository target: [github.com/HumbleDrummer/znak-orient](https://github.com/HumbleDrummer/znak-orient)
-- primary supported and executed platform: Windows 11 with Python 3.11
+- public repository: [github.com/HumbleDrummer/znak-orient](https://github.com/HumbleDrummer/znak-orient)
+- locally executed platform: Windows 11 with Python 3.11
+- GitHub CI platforms: `windows-latest`, `ubuntu-latest`, and `macos-latest`, each with Python 3.11
 - runtime: Python standard library plus code-native HTML, CSS, and JavaScript
 - build step: none; judges can clone, run the test command, and start the local UI directly
 
-Codex for Windows with `gpt-5.6-sol` accelerated repository discovery, contract and reducer implementation, test generation, browser verification, accessibility refinement, Windows HTTP failure diagnosis, and evidence-ledger preparation. The human product decisions were to keep the engine deterministic, separate fact confidence from decision authority, preserve disputes instead of overwriting them, make the Recovery Card non-authoritative, and keep publishing and external calls behind explicit gates. The complete collaboration record and principal `/feedback` Session ID are in [docs/CODEX_COLLABORATION.md](docs/CODEX_COLLABORATION.md).
+Codex for Windows with `gpt-5.6-sol` accelerated repository discovery, contract and reducer implementation, test generation, browser verification, accessibility refinement, Windows HTTP failure diagnosis, and evidence-ledger preparation. The human product decisions were to keep the engine deterministic, separate fact confidence from decision authority, preserve disputes instead of overwriting them, make the Recovery Card non-authoritative, and keep external calls behind explicit gates. The complete collaboration record is in [docs/CODEX_COLLABORATION.md](docs/CODEX_COLLABORATION.md); the principal `/feedback` Session ID is retained outside this public repository for the Devpost form.
 
 The [Build Week submission checklist](docs/BUILD_WEEK_SUBMISSION_CHECKLIST.md) separates repository-ready evidence from the still-required public YouTube video and Devpost submission.
 
@@ -75,6 +76,8 @@ ZNAK_ORIENT_LOCAL http://127.0.0.1:8765
 
 Candidate commit `3fe426b90029fcd65eb5572b1724e78ee564a089` passed 121/121 tests in a fresh no-hardlink clone, the deterministic CLI/HTTP gates, 25/25 additional rejected-request stress probes, and the 39/39 browser workflow. The exact evidence, including two pre-fix Windows connection-abort observations and their bounded-body-drain fix, is recorded in `docs/VALIDATION_FINAL_2026-07-19.md`. The retained 47.04-second local capture remains unpublished; a separate 47.00-second fresh-clone replay is commit-scoped evidence, not a byte-identical media reproduction. Earlier validation receipts remain historical evidence for their named commits only.
 
+The publication workflow runs the same 121-test suite and deterministic demo in [GitHub Actions on all three declared CI platforms](https://github.com/HumbleDrummer/znak-orient/actions). See [docs/GITHUB_PUBLICATION_2026-07-19.md](docs/GITHUB_PUBLICATION_2026-07-19.md) for the exact boundary.
+
 ## Commands
 
 ```powershell
@@ -132,6 +135,7 @@ docs/                            architecture, demo, submission, access, audits,
 - [Under-three-minute demo script](docs/DEMO_SCRIPT.md)
 - [Codex collaboration record](docs/CODEX_COLLABORATION.md)
 - [Repository and judging access](docs/REPOSITORY_ACCESS.md)
+- [GitHub publication receipt](docs/GITHUB_PUBLICATION_2026-07-19.md)
 - [Devpost draft](docs/DEVPOST_DRAFT.md)
 - [OpenAI Build Week submission checklist](docs/BUILD_WEEK_SUBMISSION_CHECKLIST.md)
 - [Claim-to-evidence matrix](docs/CLAIM_EVIDENCE_MATRIX.md)

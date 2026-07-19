@@ -55,7 +55,7 @@ Python, HTML, CSS, JavaScript, Git, Codex for Windows, local Chromium.
 
 ## Repository URL
 
-`BLOCKED / NOT_PUBLISHED — requires explicit user confirmation`
+`https://github.com/HumbleDrummer/znak-orient`
 
 ## Demo URL
 
