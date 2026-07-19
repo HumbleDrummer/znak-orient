@@ -57,7 +57,7 @@ ORIENTATION_PASS checkpoint=<deterministic-id> output=artifacts\demo-result.json
 ZNAK_ORIENT_LOCAL http://127.0.0.1:8765
 ```
 
-Candidate commit `6bd740b9c36743d3b84266da5ddf77027ca48dbc` passed 121/121 tests in a fresh no-hardlink clone, the deterministic CLI/HTTP gates, and the 39/39 browser workflow; the exact evidence and one discarded preliminary orchestration attempt are recorded in `docs/VALIDATION_EDGE_2026-07-19.md`. Its retained 47.04-second local capture remains unpublished. `docs/VALIDATION_REFINEMENT_2026-07-19.md` and `docs/VALIDATION_2026-07-19.md` remain historical receipts for their own earlier commits only.
+Candidate commit `3fe426b90029fcd65eb5572b1724e78ee564a089` passed 121/121 tests in a fresh no-hardlink clone, the deterministic CLI/HTTP gates, 25/25 additional rejected-request stress probes, and the 39/39 browser workflow. The exact evidence, including two pre-fix Windows connection-abort observations and their bounded-body-drain fix, is recorded in `docs/VALIDATION_FINAL_2026-07-19.md`. The retained 47.04-second local capture remains unpublished; a separate 47.00-second fresh-clone replay is commit-scoped evidence, not a byte-identical media reproduction. Earlier validation receipts remain historical evidence for their named commits only.
 
 ## Commands
 
@@ -119,7 +119,8 @@ docs/                            architecture, demo, submission, access, audits,
 - [Privacy, security, licensing, and claims audit](docs/AUDIT_2026-07-19.md)
 - [Visual fidelity ledger](docs/FIDELITY_LEDGER.md)
 - [Local video and browser QA receipt](docs/VIDEO_RECORDING.md)
-- [Assistant edge-state clean-checkout receipt](docs/VALIDATION_EDGE_2026-07-19.md)
+- [Final candidate clean-checkout receipt](docs/VALIDATION_FINAL_2026-07-19.md)
+- [Historical assistant edge-state clean-checkout receipt](docs/VALIDATION_EDGE_2026-07-19.md)
 - [Historical assistant-refinement clean-checkout receipt](docs/VALIDATION_REFINEMENT_2026-07-19.md)
 - [Repository discovery preflight](docs/PREFLIGHT_2026-07-19.md)
 

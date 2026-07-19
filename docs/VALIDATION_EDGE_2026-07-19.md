@@ -1,5 +1,7 @@
 # Assistant edge-state clean-checkout receipt — 2026-07-19
 
+> Historical commit-scoped receipt. Its figures and conclusions below remain unchanged as evidence for commit `6bd740b9c36743d3b84266da5ddf77027ca48dbc`; current validation is superseded by `VALIDATION_FINAL_2026-07-19.md` for candidate D.
+
 ## Scope and identity
 
 - status: `PASS_WITH_RETRY_DISCLOSURE`

@@ -14,7 +14,7 @@
 
 The capture was produced from the real loopback application by `tools/record_demo.cjs`. Browser routing rejected every non-loopback host. The recording walks through rerun, Rejected/All filtering, conflict and unknowns, Recovery Card copy, source evidence, receipts, and return to Current Position. It contains no narration and is distinct from the proposed 2:35 narrated script in `DEMO_SCRIPT.md`.
 
-These retained files belong to candidate commit `6bd740b9c36743d3b84266da5ddf77027ca48dbc`. Their fresh-clone replay and the explicit non-byte-stability boundary for mobile antialiasing and WebM encoding are recorded in `VALIDATION_EDGE_2026-07-19.md`.
+The retained recording was generated for candidate `6bd740b9c36743d3b84266da5ddf77027ca48dbc` and is carried unchanged in current candidate `3fe426b90029fcd65eb5572b1724e78ee564a089`. A separate replay from the exact current-candidate clone produced the same 39/39 browser receipt and byte-identical desktop screenshot; its mobile screenshot differed in 8 pixels by at most one channel level, while the time-based WebM was scope-equivalent rather than byte-identical. Exact replay identities are recorded in `VALIDATION_FINAL_2026-07-19.md`.
 
 ## Machine-readable browser receipt
 
