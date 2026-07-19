@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "znak-orient"
+version = "0.3.0"
+description = "Deterministic, source-backed orientation recovery from partial project evidence"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "ZNAK ORIENT contributors" }]
+dependencies = []
+
+[project.scripts]
+znak-orient = "znak_orient.cli:main"
+
+[tool.setuptools]
+packages = ["znak_orient"]
+
+[tool.setuptools.package-data]
+znak_orient = ["web/*.html", "web/*.css", "web/*.js"]
+
