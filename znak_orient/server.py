@@ -108,6 +108,15 @@ def _handler(demo_path: Path, *, allow_non_loopback: bool):
             payload = json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
             self._send_bytes(status, "application/json; charset=utf-8", payload)
 
+        def _drain_bounded_request_body(self) -> None:
+            """Consume a small rejected body so Windows does not reset the response."""
+            try:
+                pending = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                return
+            if 0 < pending <= MAX_REQUEST_BYTES:
+                self.rfile.read(pending)
+
         def _allow_request(self) -> bool:
             if allow_non_loopback:
                 return True
@@ -121,12 +130,7 @@ def _handler(demo_path: Path, *, allow_non_loopback: bool):
             )
             if not allowed:
                 if self.command == "POST":
-                    try:
-                        pending = int(self.headers.get("Content-Length", "0"))
-                    except ValueError:
-                        pending = 0
-                    if 0 < pending <= MAX_REQUEST_BYTES:
-                        self.rfile.read(pending)
+                    self._drain_bounded_request_body()
                 self._send_json(HTTPStatus.FORBIDDEN, {"error": "LOOPBACK_REQUEST_REQUIRED"})
             return allowed
 
@@ -158,10 +162,12 @@ def _handler(demo_path: Path, *, allow_non_loopback: bool):
                 return
             path = urlsplit(self.path).path
             if path != "/api/orient":
+                self._drain_bounded_request_body()
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
                 return
             content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
             if content_type != "application/json":
+                self._drain_bounded_request_body()
                 self._send_json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "JSON_REQUIRED"})
                 return
             try:

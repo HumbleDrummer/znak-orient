@@ -173,13 +173,27 @@ class ServerTests(unittest.TestCase):
                 thread.join(timeout=2)
 
     def test_wrong_media_type_and_unknown_path_fail_closed(self):
-        request = Request(self.base_url + "/api/orient", data=b"{}", method="POST")
-        with self.assertRaises(HTTPError) as wrong_type:
-            urlopen(request, timeout=2)
-        self.assertEqual(415, wrong_type.exception.code)
+        for attempt in range(5):
+            with self.subTest(wrong_media_type_attempt=attempt):
+                request = Request(self.base_url + "/api/orient", data=b"{}", method="POST")
+                with self.assertRaises(HTTPError) as wrong_type:
+                    urlopen(request, timeout=2)
+                self.assertEqual(415, wrong_type.exception.code)
+                self.assertEqual(
+                    {"error": "JSON_REQUIRED"},
+                    json.loads(wrong_type.exception.read()),
+                )
         with self.assertRaises(HTTPError) as not_found:
             self.get("/../../private.txt")
         self.assertEqual(404, not_found.exception.code)
+        status, payload = self.raw_request(
+            "POST",
+            "/not-a-route",
+            headers={"Content-Type": "application/json"},
+            body=b"{}",
+        )
+        self.assertEqual(404, status)
+        self.assertEqual({"error": "NOT_FOUND"}, json.loads(payload))
 
     def test_non_loopback_binding_requires_explicit_override(self):
         with self.assertRaisesRegex(OrientationError, "non-loopback"):
