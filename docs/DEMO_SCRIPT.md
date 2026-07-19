@@ -1,6 +1,6 @@
 # Narrated demo script — 2 minutes 35 seconds
 
-Recording status: the retained local `artifacts/znak-orient-demo.webm` is a 47.04-second silent interaction/evidence capture of the same workflow from the current `LOCAL_CANDIDATE`. This longer script is the proposed narration for a future published submission video; no public upload or clean-checkout media claim is made.
+Recording status: the retained local `artifacts/znak-orient-demo.webm` is a 47.04-second silent interaction/evidence capture of candidate commit `6bd740b…`; its scoped fresh-clone replay is recorded in `VALIDATION_EDGE_2026-07-19.md`. This longer script is the proposed narration for a future published submission video; no public upload is claimed.
 
 ## 00:00–00:20 — Problem
 

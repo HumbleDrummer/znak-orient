@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | File | `artifacts/znak-orient-demo.webm` |
-| Status | `EXECUTED_LOCAL / LOCAL_CANDIDATE / NOT_PUBLISHED` |
+| Status | `EXECUTED_LOCAL / COMMIT_SCOPED_PASS / NOT_PUBLISHED` |
 | Duration | 47.04 seconds |
 | Frame | 1440x900, 25 fps |
 | Codec | VP8 in WebM |
@@ -14,7 +14,7 @@
 
 The capture was produced from the real loopback application by `tools/record_demo.cjs`. Browser routing rejected every non-loopback host. The recording walks through rerun, Rejected/All filtering, conflict and unknowns, Recovery Card copy, source evidence, receipts, and return to Current Position. It contains no narration and is distinct from the proposed 2:35 narrated script in `DEMO_SCRIPT.md`.
 
-These files are current worktree evidence for the `LOCAL_CANDIDATE`; they are not yet a commit-scoped clean-checkout receipt.
+These retained files belong to candidate commit `6bd740b9c36743d3b84266da5ddf77027ca48dbc`. Their fresh-clone replay and the explicit non-byte-stability boundary for mobile antialiasing and WebM encoding are recorded in `VALIDATION_EDGE_2026-07-19.md`.
 
 ## Machine-readable browser receipt
 

@@ -1,6 +1,6 @@
 # Assistant refinement clean-checkout receipt — 2026-07-19
 
-> Historical receipt for commit `97d104fe043b0963b19ce15aea9bd3fe2480874a`. Its test counts, timings, media identities, and conclusions remain unchanged as commit-scoped evidence. It does not validate the current `LOCAL_CANDIDATE`, which still requires a new clean-checkout receipt.
+> Historical receipt for commit `97d104fe043b0963b19ce15aea9bd3fe2480874a`. Its test counts, timings, media identities, and conclusions remain unchanged as commit-scoped evidence. The later candidate is validated separately in `VALIDATION_EDGE_2026-07-19.md`; no result is transferred between those commits.
 
 ## Scope and identity
 

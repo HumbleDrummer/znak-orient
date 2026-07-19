@@ -11,7 +11,7 @@ Image generation was not used because the authorized PIN blocks paid or real API
 
 ## Verification methods
 
-The Codex in-app browser loaded the real loopback application, returned a complete accessibility snapshot, executed **Re-run orientation**, changed the intake filter to **Rejected** (8 → 5 of 8 visible items), activated **Copy Recovery Card**, and reported no warning/error console entries. Its viewport override did not change the reported CSS viewport, so local Chromium headless with all non-loopback resolution blocked was used for exact 1440×900, 390×844, and 320×640 responsive checks, a 47.04-second workflow recording, and the retained 39/39 `browser-qa.json` receipt. That receipt isolates one expected HTTP 400 resource event from the deliberate invalid-JSON probe and records zero unexpected console errors and zero page errors.
+The Codex in-app browser loaded the real loopback application, returned a complete accessibility snapshot, executed **Re-run orientation**, changed the intake filter to **Rejected** (8 → 5 of 8 visible items), activated **Copy Recovery Card**, and reported no warning/error console entries. Its viewport override did not change the reported CSS viewport, so local Chromium headless with all non-loopback resolution blocked was used for exact 1440×900, 390×844, and 320×640 responsive checks, a 47.04-second workflow recording, and the retained 39/39 `browser-qa.json` receipt. That receipt isolates one expected HTTP 400 resource event from the deliberate invalid-JSON probe and records zero unexpected console errors and zero page errors. Fresh-clone replay and the 8-pixel mobile antialiasing boundary are recorded in `VALIDATION_EDGE_2026-07-19.md`.
 
 ## Comparison points
 

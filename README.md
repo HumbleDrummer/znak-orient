@@ -57,7 +57,7 @@ ORIENTATION_PASS checkpoint=<deterministic-id> output=artifacts\demo-result.json
 ZNAK_ORIENT_LOCAL http://127.0.0.1:8765
 ```
 
-The current `LOCAL_CANDIDATE` passed 121/121 local tests in 7.631 seconds. Its browser receipt is `artifacts/browser-qa.json` (39/39 named checks true, one expected HTTP 400 resource event, zero unexpected console errors, and zero page errors); its 47.04-second local capture is `artifacts/znak-orient-demo.webm` and remains unpublished. `docs/VALIDATION_REFINEMENT_2026-07-19.md` and `docs/VALIDATION_2026-07-19.md` are historical, commit-scoped receipts for the earlier candidates they name. A clean-checkout receipt for this local candidate has not yet been created, so their `PASS` does not transfer to it.
+Candidate commit `6bd740b9c36743d3b84266da5ddf77027ca48dbc` passed 121/121 tests in a fresh no-hardlink clone, the deterministic CLI/HTTP gates, and the 39/39 browser workflow; the exact evidence and one discarded preliminary orchestration attempt are recorded in `docs/VALIDATION_EDGE_2026-07-19.md`. Its retained 47.04-second local capture remains unpublished. `docs/VALIDATION_REFINEMENT_2026-07-19.md` and `docs/VALIDATION_2026-07-19.md` remain historical receipts for their own earlier commits only.
 
 ## Commands
 
@@ -119,6 +119,7 @@ docs/                            architecture, demo, submission, access, audits,
 - [Privacy, security, licensing, and claims audit](docs/AUDIT_2026-07-19.md)
 - [Visual fidelity ledger](docs/FIDELITY_LEDGER.md)
 - [Local video and browser QA receipt](docs/VIDEO_RECORDING.md)
+- [Assistant edge-state clean-checkout receipt](docs/VALIDATION_EDGE_2026-07-19.md)
 - [Historical assistant-refinement clean-checkout receipt](docs/VALIDATION_REFINEMENT_2026-07-19.md)
 - [Repository discovery preflight](docs/PREFLIGHT_2026-07-19.md)
 
