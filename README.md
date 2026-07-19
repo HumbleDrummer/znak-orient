@@ -1,10 +1,24 @@
 # ZNAK ORIENT
 
+[![CI](https://github.com/HumbleDrummer/znak-orient/actions/workflows/ci.yml/badge.svg)](https://github.com/HumbleDrummer/znak-orient/actions/workflows/ci.yml)
+
 ZNAK ORIENT is a local, deterministic developer tool for recovering project direction from partial, stale, duplicated, contradictory, and untrusted evidence. It returns a source-backed current position, explicit conflicts and unknowns, exactly one corrective next step, a machine-verifiable success condition, a canonical checkpoint, and a compact non-authoritative Recovery Card.
 
 Current scope: `IMPLEMENTED_AND_LOCALLY_EXECUTED` competition MVP. This is not a claim of production readiness, canonical X30 ratification, external source authenticity, GitHub publication, public deployment, Devpost submission, or published video.
 
 ![ZNAK ORIENT desktop interface](artifacts/ui-desktop-1440x900.png)
+
+## OpenAI Build Week
+
+- category: **Developer Tools**
+- public-repository target: [github.com/HumbleDrummer/znak-orient](https://github.com/HumbleDrummer/znak-orient)
+- primary supported and executed platform: Windows 11 with Python 3.11
+- runtime: Python standard library plus code-native HTML, CSS, and JavaScript
+- build step: none; judges can clone, run the test command, and start the local UI directly
+
+Codex for Windows with `gpt-5.6-sol` accelerated repository discovery, contract and reducer implementation, test generation, browser verification, accessibility refinement, Windows HTTP failure diagnosis, and evidence-ledger preparation. The human product decisions were to keep the engine deterministic, separate fact confidence from decision authority, preserve disputes instead of overwriting them, make the Recovery Card non-authoritative, and keep publishing and external calls behind explicit gates. The complete collaboration record and principal `/feedback` Session ID are in [docs/CODEX_COLLABORATION.md](docs/CODEX_COLLABORATION.md).
+
+The [Build Week submission checklist](docs/BUILD_WEEK_SUBMISSION_CHECKLIST.md) separates repository-ready evidence from the still-required public YouTube video and Devpost submission.
 
 ## Why it exists
 
@@ -40,12 +54,14 @@ Runtime and tests use only the Python standard library. No package install, cred
 ## Run from a clean checkout
 
 ```powershell
-git clone <repository-path-or-approved-GitHub-URL> znak-orient
+git clone https://github.com/HumbleDrummer/znak-orient.git
 Set-Location znak-orient
 python -m unittest discover -s tests -v
 python -m znak_orient verify-demo --input demo/evidence-package.json --output artifacts/demo-result.json
 python -m znak_orient serve --host 127.0.0.1 --port 8765
 ```
+
+On Windows, judges may instead double-click `start-znak-orient.bat`; it starts the same loopback-only server and opens the local interface. Keep its terminal window open and press `Ctrl+C` there to stop the server.
 
 Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Use **Re-run orientation** for the bundled fixture or **Choose JSON** for another local package no larger than 1 MB.
 
@@ -89,6 +105,8 @@ znak_orient/cli.py               atomic CLI artifact write and local commands
 znak_orient/server.py            loopback HTTP/API surface with security headers and size limits
 znak_orient/web/                 code-native responsive interface
 tests/                           deterministic, policy, recovery, CLI, and HTTP tests
+.github/workflows/ci.yml         public GitHub Actions test and demo-verification gate
+start-znak-orient.bat            Windows one-click local launcher
 docs/                            architecture, demo, submission, access, audits, and validation
 ```
 
@@ -115,6 +133,7 @@ docs/                            architecture, demo, submission, access, audits,
 - [Codex collaboration record](docs/CODEX_COLLABORATION.md)
 - [Repository and judging access](docs/REPOSITORY_ACCESS.md)
 - [Devpost draft](docs/DEVPOST_DRAFT.md)
+- [OpenAI Build Week submission checklist](docs/BUILD_WEEK_SUBMISSION_CHECKLIST.md)
 - [Claim-to-evidence matrix](docs/CLAIM_EVIDENCE_MATRIX.md)
 - [Privacy, security, licensing, and claims audit](docs/AUDIT_2026-07-19.md)
 - [Visual fidelity ledger](docs/FIDELITY_LEDGER.md)
