@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f3f1eb"/>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#17211d">
+    <path d="M48 57 62 33l14 24M53 53h18M58 62h8" fill="none" stroke="#17211d" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="90" y="54" font-size="20" font-weight="700">ZNAK ORIENT</text>
+    <text x="570" y="48" font-size="12" fill="#62706a">judge-safe-orientation-demo-001</text>
+    <text x="570" y="66" font-family="Consolas, monospace" font-size="10" fill="#62706a">checkpoint 2dd4da029e29d393…</text>
+    <rect x="1170" y="28" width="220" height="44" rx="7" fill="#17211d"/>
+    <text x="1280" y="55" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Re-run orientation</text>
+    <line x1="48" y1="92" x2="1390" y2="92" stroke="#d7d9d2"/>
+
+    <rect x="48" y="120" width="315" height="616" rx="8" fill="#fff" stroke="#d7d9d2"/>
+    <text x="72" y="151" font-family="Consolas, monospace" font-size="10" fill="#62706a">01</text>
+    <text x="72" y="180" font-size="24" font-weight="700">Noise Intake</text>
+    <text x="330" y="176" text-anchor="end" font-size="11" fill="#62706a">8 items</text>
+    <line x1="72" y1="197" x2="339" y2="197" stroke="#d7d9d2"/>
+    <g font-size="10" font-weight="700" fill="#62706a"><text x="72" y="224">ALL</text><text x="112" y="224">APPLIED</text><text x="178" y="224">REJECTED</text><text x="248" y="224">DISPUTED</text></g>
+    <g font-size="12">
+      <rect x="72" y="250" width="3" height="48" fill="#a9362a"/><text x="86" y="267" font-weight="700">project.completion</text><text x="86" y="286" font-size="10" fill="#62706a">RECEIPT_NOT_PASS</text>
+      <rect x="72" y="315" width="3" height="48" fill="#62706a"/><text x="86" y="332" font-weight="700">imported.text</text><text x="86" y="351" font-size="10" fill="#62706a">TEXT_IS_DATA_NOT_INSTRUCTION</text>
+      <rect x="72" y="380" width="3" height="48" fill="#9a5d00"/><text x="86" y="397" font-weight="700">demo.entrypoint</text><text x="86" y="416" font-size="10" fill="#62706a">CONFLICT_PRESERVED</text>
+      <rect x="72" y="445" width="3" height="48" fill="#0f6d52"/><text x="86" y="462" font-weight="700">release.publication</text><text x="86" y="481" font-size="10" fill="#62706a">AUTHORIZED_CHANGE</text>
+      <rect x="72" y="510" width="3" height="48" fill="#a9362a"/><text x="86" y="527" font-weight="700">project.phase</text><text x="86" y="546" font-size="10" fill="#62706a">STALE_STATE</text>
+      <rect x="72" y="575" width="3" height="48" fill="#a9362a"/><text x="86" y="592" font-weight="700">project.primary</text><text x="86" y="611" font-size="10" fill="#62706a">UNAUTHORIZED_OVERRIDE</text>
+    </g>
+
+    <rect x="379" y="120" width="612" height="394" rx="8" fill="#fff" stroke="#d7d9d2"/>
+    <text x="409" y="151" font-family="Consolas, monospace" font-size="10" fill="#62706a">02</text>
+    <text x="409" y="188" font-size="36" font-weight="700">Current Position</text>
+    <rect x="882" y="145" width="79" height="28" fill="#fae9e6"/><rect x="882" y="145" width="3" height="28" fill="#a9362a"/><text x="922" y="163" text-anchor="middle" font-size="10" font-weight="800" fill="#a9362a">BLOCKED</text>
+    <line x1="409" y1="207" x2="961" y2="207" stroke="#d7d9d2"/>
+    <text x="409" y="253" font-size="27" font-weight="650">Clean-checkout validation failed;</text>
+    <text x="409" y="288" font-size="27" font-weight="650">ZNAK ORIENT is not yet judge-ready.</text>
+    <text x="409" y="327" font-size="10" font-weight="800" fill="#62706a">GOAL</text>
+    <text x="409" y="348" font-size="13">Deliver a judge-ready local ZNAK ORIENT vertical slice.</text>
+    <rect x="409" y="376" width="552" height="108" fill="#e9eff9"/>
+    <rect x="409" y="376" width="4" height="108" fill="#2056a8"/>
+    <text x="431" y="402" font-size="10" font-weight="800" fill="#2056a8">ONE JUSTIFIED NEXT ACTION</text>
+    <text x="431" y="430" font-size="17" font-weight="700">Record one AUTHORIZED resolution for demo.entrypoint</text>
+    <text x="431" y="452" font-size="12" fill="#62706a">Material disputed claims cannot drive execution.</text>
+    <text x="431" y="472" font-family="Consolas, monospace" font-size="9" fill="#2056a8">success: conflict_resolved · AUTHORIZED</text>
+
+    <rect x="1007" y="120" width="383" height="616" rx="8" fill="#17211d"/>
+    <text x="1035" y="151" font-family="Consolas, monospace" font-size="10" fill="#aeb9b3">04</text>
+    <text x="1035" y="180" font-size="24" font-weight="700" fill="#fff">Recovery Card</text>
+    <line x1="1035" y1="197" x2="1362" y2="197" stroke="#3c4742"/>
+    <rect x="1035" y="220" width="327" height="38" fill="none" stroke="#52605a"/><text x="1198" y="243" text-anchor="middle" font-size="10" font-weight="800" fill="#d6ded9">DERIVED — NOT SOURCE OF TRUTH</text>
+    <text x="1035" y="291" font-size="10" font-weight="800" fill="#9daaa4">POSITION</text>
+    <text x="1035" y="316" font-size="13" fill="#fff">Validation failed; completion unverified.</text>
+    <line x1="1035" y1="340" x2="1362" y2="340" stroke="#36413c"/>
+    <text x="1035" y="370" font-size="10" font-weight="800" fill="#9daaa4">GOAL</text>
+    <text x="1035" y="395" font-size="13" fill="#fff">Deliver the local vertical slice.</text>
+    <line x1="1035" y1="420" x2="1362" y2="420" stroke="#36413c"/>
+    <text x="1035" y="450" font-size="10" font-weight="800" fill="#9daaa4">VOLTAGE</text><text x="1035" y="475" font-size="13" fill="#fff">BLOCKED</text>
+    <line x1="1035" y1="500" x2="1362" y2="500" stroke="#36413c"/>
+    <text x="1035" y="530" font-size="10" font-weight="800" fill="#9daaa4">NEXT</text>
+    <text x="1035" y="555" font-size="13" fill="#fff">Resolve the entrypoint conflict</text><text x="1035" y="574" font-size="13" fill="#fff">with an authorized state change.</text>
+
+    <rect x="379" y="530" width="612" height="206" rx="8" fill="#fff" stroke="#d7d9d2"/>
+    <text x="409" y="560" font-family="Consolas, monospace" font-size="10" fill="#62706a">03</text>
+    <text x="409" y="590" font-size="23" font-weight="700">Conflict and Unknowns</text>
+    <line x1="409" y1="607" x2="961" y2="607" stroke="#d7d9d2"/>
+    <text x="409" y="639" font-size="10" font-weight="800">OPEN CONFLICT</text><text x="690" y="639" font-size="10" font-weight="800">CRITICAL UNKNOWN</text>
+    <text x="409" y="668" font-size="13" font-weight="700">demo.entrypoint</text><text x="690" y="668" font-size="13" font-weight="700">project.completion.failure_cause</text>
+    <text x="409" y="690" font-size="11" fill="#62706a">Two authorized records; neither supersedes.</text><text x="690" y="690" font-size="11" fill="#62706a">Corrective proof remains UNKNOWN.</text>
+
+    <rect x="48" y="754" width="1342" height="102" rx="8" fill="#fff" stroke="#d7d9d2"/>
+    <text x="72" y="784" font-family="Consolas, monospace" font-size="10" fill="#62706a">05</text>
+    <text x="72" y="816" font-size="23" font-weight="700">Source Evidence</text>
+    <line x1="280" y1="776" x2="280" y2="838" stroke="#d7d9d2"/><text x="310" y="795" font-size="10" fill="#62706a">SOURCE</text><text x="310" y="820" font-family="Consolas, monospace" font-size="11">src-clean-validation</text>
+    <line x1="580" y1="776" x2="580" y2="838" stroke="#d7d9d2"/><text x="610" y="795" font-size="10" fill="#62706a">STATUS</text><text x="610" y="820" font-size="11" font-weight="700" fill="#a9362a">FAIL</text>
+    <line x1="760" y1="776" x2="760" y2="838" stroke="#d7d9d2"/><text x="790" y="795" font-size="10" fill="#62706a">EVIDENCE</text><text x="790" y="820" font-size="11">web entrypoint missing in clean checkout</text>
+  </g>
+</svg>
+

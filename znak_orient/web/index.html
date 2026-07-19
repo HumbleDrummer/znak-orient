@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>ZNAK ORIENT — Local orientation console</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#current-position">Skip to current position</a>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="#current-position" aria-label="ZNAK ORIENT current position">
+          <svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true">
+            <path d="M8 29.5 21 8l13 21.5" />
+            <path d="M13 26h16M17 32h8" />
+          </svg>
+          <span>ZNAK ORIENT</span>
+        </a>
+        <div class="run-meta" aria-label="Loaded orientation metadata">
+          <span id="package-name">Loading evidence package…</span>
+          <code id="checkpoint-hash">checkpoint —</code>
+        </div>
+        <div class="top-actions">
+          <label class="file-control" for="package-file">Choose JSON</label>
+          <input id="package-file" type="file" accept="application/json,.json" />
+          <button class="button button-primary" id="rerun" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 8.4a7 7 0 0 1 11.2-1.8L20 9M4 15l2.7 2.4a7 7 0 0 0 11.2-1.8" /></svg>
+            Re-run orientation
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <div class="orientation-grid">
+          <section class="panel intake-panel" id="noise-intake" aria-labelledby="intake-title">
+            <div class="section-heading">
+              <div>
+                <p class="section-index">01</p>
+                <h2 id="intake-title">Noise Intake</h2>
+              </div>
+              <strong id="intake-count">0 items</strong>
+            </div>
+            <div class="filter-row" aria-label="Filter intake dispositions">
+              <button type="button" class="filter active" data-filter="ALL">All</button>
+              <button type="button" class="filter" data-filter="APPLIED">Applied</button>
+              <button type="button" class="filter" data-filter="REJECTED">Rejected</button>
+              <button type="button" class="filter" data-filter="DISPUTED">Disputed</button>
+              <button type="button" class="filter" data-filter="IGNORED">Ignored</button>
+            </div>
+            <ol class="intake-list" id="intake-list" aria-live="polite"></ol>
+          </section>
+
+          <section class="panel current-panel" id="current-position" aria-labelledby="position-title">
+            <div class="section-heading">
+              <div>
+                <p class="section-index">02</p>
+                <h1 id="position-title">Current Position</h1>
+              </div>
+              <span class="voltage" id="voltage">UNKNOWN</span>
+            </div>
+            <p class="position-statement" id="position-statement">Recovering source-backed position…</p>
+            <dl class="orientation-facts">
+              <div><dt>Goal</dt><dd id="goal">—</dd></div>
+              <div><dt>Base</dt><dd id="base-status">—</dd></div>
+              <div><dt>Mode</dt><dd id="execution-mode">—</dd></div>
+            </dl>
+            <article class="next-step" aria-labelledby="next-step-title">
+              <div class="direction-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="M5 16h20M18 9l7 7-7 7" /></svg>
+              </div>
+              <div>
+                <p class="small-label">One justified next action</p>
+                <h2 id="next-step-title">—</h2>
+                <p id="next-step-reason">—</p>
+                <p class="source-line" id="next-step-sources">Sources —</p>
+                <code class="success-condition" id="success-condition">—</code>
+              </div>
+            </article>
+          </section>
+
+          <section class="panel conflict-panel" id="conflicts-unknowns" aria-labelledby="conflict-title">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="section-index">03</p>
+                <h2 id="conflict-title">Conflict and Unknowns</h2>
+              </div>
+              <strong id="blocker-count">0 blockers</strong>
+            </div>
+            <div class="conflict-columns">
+              <div>
+                <h3>Open conflicts</h3>
+                <div id="conflict-list" class="ruled-list"></div>
+              </div>
+              <div>
+                <h3>Critical unknowns</h3>
+                <div id="unknown-list" class="ruled-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel recovery-panel" id="recovery-card" aria-labelledby="recovery-title">
+            <div class="section-heading">
+              <div>
+                <p class="section-index">04</p>
+                <h2 id="recovery-title">Recovery Card</h2>
+              </div>
+              <button class="icon-button" id="copy-card" type="button" aria-label="Copy Recovery Card">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="1" /><path d="M16 8V5H5v11h3" /></svg>
+              </button>
+            </div>
+            <p class="derived-warning">DERIVED — NOT SOURCE OF TRUTH</p>
+            <dl class="card-summary">
+              <div><dt>Position</dt><dd id="card-position">—</dd></div>
+              <div><dt>Goal</dt><dd id="card-goal">—</dd></div>
+              <div><dt>Voltage</dt><dd id="card-voltage">—</dd></div>
+              <div><dt>Next</dt><dd id="card-next">—</dd></div>
+            </dl>
+            <p class="source-line" id="card-provenance">Derived from —</p>
+          </section>
+        </div>
+
+        <section class="evidence-section" id="source-evidence" aria-labelledby="sources-title">
+          <div class="section-heading wide-heading">
+            <div>
+              <p class="section-index">05</p>
+              <h2 id="sources-title">Source Evidence</h2>
+            </div>
+            <strong id="source-count">0 sources</strong>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Source</th><th>Kind</th><th>Authority</th><th>Captured</th><th>Evidence excerpt</th></tr></thead>
+              <tbody id="source-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="receipt-section" id="validation-receipt" aria-labelledby="receipt-title">
+          <div class="section-heading wide-heading">
+            <div>
+              <p class="section-index">06</p>
+              <h2 id="receipt-title">Validation Receipt</h2>
+            </div>
+            <strong id="run-status">—</strong>
+          </div>
+          <div class="receipt-layout">
+            <div id="imported-receipts"></div>
+            <div class="run-receipt" id="run-receipt"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>Local deterministic processing · no model calls · no telemetry · no publication</p>
+        <code>schema 0.3C</code>
+      </footer>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
+
