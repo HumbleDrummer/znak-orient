@@ -10,12 +10,16 @@ function node(tag, className, text) {
   return element;
 }
 
-function showToast(message) {
+function showToast(message, announce = true) {
   const toast = byId("toast");
   toast.textContent = message;
   toast.classList.add("visible");
+  if (announce) setText("orientation-status", message);
   window.clearTimeout(state.toastTimer);
-  state.toastTimer = window.setTimeout(() => toast.classList.remove("visible"), 2600);
+  state.toastTimer = window.setTimeout(() => {
+    toast.classList.remove("visible");
+    toast.textContent = "";
+  }, 2600);
 }
 
 function clearError() {
@@ -28,7 +32,6 @@ function showError(message) {
   const error = byId("package-error");
   error.textContent = message;
   error.hidden = false;
-  showToast(message);
 }
 
 function replayGuideMotion() {
@@ -224,7 +227,7 @@ async function requestResult(url, options, announce = true) {
     const body = await response.json();
     if (!response.ok) throw new Error(body.detail || body.error || `HTTP ${response.status}`);
     render(body);
-    if (announce) showToast(`Orientation updated: ${body.checkpoint.voltage}. One next action selected.`);
+    if (announce) showToast(`Orientation updated: ${body.checkpoint.voltage}. One next action selected.`, false);
   } catch (error) {
     showError(`Orientation failed: ${error.message}`);
   } finally {

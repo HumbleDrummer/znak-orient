@@ -26,6 +26,35 @@ def receipt_by_id(package, receipt_id="vr-clean-007"):
     return next(item for item in package["validation_receipts"] if item["receipt_id"] == receipt_id)
 
 
+def state_change(
+    change_id,
+    sequence,
+    content_type,
+    operation,
+    subject,
+    value,
+    epistemic="SUPPORTED",
+    authority="NOT_APPLICABLE",
+    material=True,
+    expected_checkpoint_id="cp-old-valid-001",
+):
+    return {
+        "change_id": change_id,
+        "object_type": "STATE_CHANGE",
+        "sequence": sequence,
+        "observed_at": f"2026-07-19T08:{sequence:02d}:00+02:00",
+        "content_type": content_type,
+        "operation": operation,
+        "subject": subject,
+        "value": value,
+        "epistemic": epistemic,
+        "authority": authority,
+        "material": material,
+        "expected_checkpoint_id": expected_checkpoint_id,
+        "source_ids": ["src-authorized-change"],
+    }
+
+
 class DemoOrientationTests(unittest.TestCase):
     def setUp(self):
         self.package = demo_package()
@@ -184,6 +213,632 @@ class RecoveryAndPolicyTests(unittest.TestCase):
         self.assertEqual(compact_result["recovery_card"], full_result["recovery_card"])
         covered = [item for item in full_result["intake"] if item["reason"] == "COVERED_BY_VALID_CHECKPOINT"]
         self.assertEqual(4, len(covered))
+
+    def test_activate_operation_creates_state_and_records_explicit_impact(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-activate-risk",
+                5,
+                "RISK",
+                "ACTIVATE",
+                "risk.activation-contract",
+                "Activation remains locally testable.",
+            )
+        ]
+
+        result = orient(package)
+        applied = intake_by_id(result)["chg-activate-risk"]
+        lamp = next(
+            item
+            for item in result["checkpoint"]["active_lamps"]
+            if item["subject"] == "risk.activation-contract"
+        )
+
+        self.assertEqual("APPLIED", applied["status"])
+        self.assertEqual("STATE_ACTIVATED", applied["impact"])
+        self.assertEqual("ACTIVATE", result["checkpoint"]["recent_changes"][0]["operation"])
+        self.assertEqual("RISK", lamp["type"])
+
+    def test_impact_is_derived_output_and_remains_closed_to_input(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        change = state_change(
+            "chg-forged-input-impact",
+            5,
+            "RISK",
+            "ACTIVATE",
+            "risk.forged-impact",
+            "Input must not declare its own effect.",
+        )
+        change["impact"] = "STATE_ACTIVATED"
+        package["changes"] = [change]
+
+        with self.assertRaisesRegex(OrientationError, "STATE_CHANGE contains unsupported fields"):
+            orient(package)
+
+    def test_connection_content_type_is_preserved_as_an_active_lamp(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-create-connection",
+                5,
+                "CONNECTION",
+                "CREATE",
+                "connection.goal-to-validation",
+                {"from": "project.primary", "to": "validation.clean-checkout"},
+            )
+        ]
+
+        result = orient(package)
+        connection = next(
+            item
+            for item in result["checkpoint"]["active_lamps"]
+            if item["subject"] == "connection.goal-to-validation"
+        )
+
+        self.assertEqual("CONNECTION", connection["type"])
+        self.assertEqual("STATE_ACTIVATED", result["checkpoint"]["recent_changes"][0]["impact"])
+        self.assertEqual(
+            {"from": "project.primary", "to": "validation.clean-checkout"},
+            connection["value"],
+        )
+
+    def test_inferred_epistemic_state_remains_inferred_without_becoming_fact(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-inferred-risk",
+                5,
+                "RISK",
+                "CREATE",
+                "risk.inferred-only",
+                "The dependency may delay the next validation.",
+                epistemic="INFERRED",
+            )
+        ]
+
+        result = orient(package)
+        inferred = next(
+            item
+            for item in result["checkpoint"]["active_lamps"]
+            if item["subject"] == "risk.inferred-only"
+        )
+
+        self.assertEqual("RISK", inferred["type"])
+        self.assertEqual("INFERRED", inferred["epistemic"])
+        self.assertFalse(
+            any(
+                item["type"] == "FACT" and item["subject"] == inferred["subject"]
+                for item in result["checkpoint"]["active_lamps"]
+            )
+        )
+
+    def test_checkpoint_rejects_inconsistent_state_change_impact(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-impact-tamper-target",
+                5,
+                "RISK",
+                "ACTIVATE",
+                "risk.impact-tamper",
+                "Impact must remain structurally bound.",
+            )
+        ]
+        generated = orient(copy.deepcopy(package))["checkpoint"]
+        malformed = copy.deepcopy(generated)
+        malformed["recent_changes"][0]["impact"] = "STATE_DEACTIVATED"
+
+        package["checkpoints"] = {
+            "primary": seal_checkpoint(malformed),
+            "fallbacks": [copy.deepcopy(demo_package()["checkpoints"]["primary"])],
+        }
+        package["changes"] = []
+        recovered = orient(package)
+
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", recovered["base_checkpoint"]["status"])
+        self.assertIn(
+            "checkpoint recent change is invalid",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_checkpoint_rejects_semantically_complete_deactivation_tamper_with_active_state(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-projection-tamper-target",
+                5,
+                "RISK",
+                "ACTIVATE",
+                "risk.projection-tamper",
+                "The risk remains active in canonical state.",
+            )
+        ]
+        generated = orient(copy.deepcopy(package))["checkpoint"]
+        malformed = copy.deepcopy(generated)
+        retained_change = malformed["recent_changes"][0]
+        activated_lamp = copy.deepcopy(retained_change["after"])
+        retained_change.update(
+            {
+                "operation": "DEACTIVATE",
+                "reason": "STATE_DEACTIVATED",
+                "impact": "STATE_DEACTIVATED",
+                "before": activated_lamp,
+                "after": None,
+            }
+        )
+
+        package["checkpoints"] = {
+            "primary": seal_checkpoint(malformed),
+            "fallbacks": [copy.deepcopy(demo_package()["checkpoints"]["primary"])],
+        }
+        package["changes"] = []
+        recovered = orient(package)
+
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", recovered["base_checkpoint"]["status"])
+        self.assertIn(
+            "does not match final state projection",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_checkpoint_rejects_semantically_complete_fact_deactivation_tamper(self):
+        package = demo_package()
+        receipt = receipt_by_id(package)
+        receipt["status"] = "PASS"
+        receipt["checks"] = [
+            {"id": item["id"], "status": "PASS"} for item in receipt["checks"]
+        ]
+        receipt["summary"] = "Clean checkout passed."
+        receipt["validator_id"] = "ZNAK_ORIENT_LOCAL_TEST_RUNNER"
+        generated = orient(copy.deepcopy(package))["checkpoint"]
+        malformed = copy.deepcopy(generated)
+        retained_change = next(
+            item
+            for item in malformed["recent_changes"]
+            if item["content_type"] == "FACT"
+            and item["impact"] == "STATE_ACTIVATED"
+        )
+        activated_lamp = copy.deepcopy(retained_change["after"])
+        retained_change.update(
+            {
+                "operation": "DEACTIVATE",
+                "reason": "STATE_DEACTIVATED",
+                "impact": "STATE_DEACTIVATED",
+                "before": activated_lamp,
+                "after": None,
+            }
+        )
+
+        package["checkpoints"] = {
+            "primary": seal_checkpoint(malformed),
+            "fallbacks": [copy.deepcopy(demo_package()["checkpoints"]["primary"])],
+        }
+        package["changes"] = []
+        recovered = orient(package)
+
+        self.assertEqual(
+            "FALLBACK_VALID_AFTER_CORRUPTION",
+            recovered["base_checkpoint"]["status"],
+        )
+        self.assertIn(
+            "does not match final state projection",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_checkpoint_rejects_disconnected_recent_change_transition_chain(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-chain-create",
+                5,
+                "RISK",
+                "CREATE",
+                "risk.transition-chain",
+                "Original first state.",
+            ),
+            state_change(
+                "chg-chain-supersede",
+                6,
+                "RISK",
+                "SUPERSEDE",
+                "risk.transition-chain",
+                "Final state.",
+            ),
+        ]
+        package["changes"][1]["supersedes"] = "lamp:risk:risk.transition-chain"
+        generated = orient(copy.deepcopy(package))["checkpoint"]
+        malformed = copy.deepcopy(generated)
+        malformed["recent_changes"][0]["meaning"] = "Fabricated disconnected state."
+        malformed["recent_changes"][0]["after"]["value"] = (
+            "Fabricated disconnected state."
+        )
+
+        package["checkpoints"] = {
+            "primary": seal_checkpoint(malformed),
+            "fallbacks": [copy.deepcopy(demo_package()["checkpoints"]["primary"])],
+        }
+        package["changes"] = []
+        recovered = orient(package)
+
+        self.assertEqual(
+            "FALLBACK_VALID_AFTER_CORRUPTION",
+            recovered["base_checkpoint"]["status"],
+        )
+        self.assertIn(
+            "transition chain is discontinuous",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_legacy_03c_checkpoint_is_integrity_checked_then_migrated_and_resealed(self):
+        source_package = demo_package()
+        source_package["validation_receipts"] = [receipt_by_id(source_package, "vr-core-001")]
+        source_package["changes"] = [
+            state_change(
+                "chg-legacy-risk",
+                5,
+                "RISK",
+                "ACTIVATE",
+                "risk.legacy-impact",
+                "Legacy history has one unambiguous activation.",
+            )
+        ]
+        current = orient(source_package)["checkpoint"]
+        legacy = copy.deepcopy(current)
+        legacy["checkpoint_id"] = "cp-legacy-03c-without-impact"
+        for change in legacy["recent_changes"]:
+            change.pop("impact")
+        legacy = seal_checkpoint(legacy)
+        original_legacy_bytes = canonical_json_bytes(legacy)
+
+        package = demo_package()
+        package["as_of"] = "2026-07-19T08:45:00+02:00"
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["checkpoints"] = {"primary": legacy, "fallbacks": []}
+        package["changes"] = []
+        migrated = orient(package)
+        replayed = orient(package)
+
+        self.assertEqual(
+            "PRIMARY_VALID_LEGACY_MIGRATED",
+            migrated["base_checkpoint"]["status"],
+        )
+        self.assertEqual(legacy["checkpoint_id"], migrated["base_checkpoint"]["checkpoint_id"])
+        self.assertNotEqual(legacy["checkpoint_id"], migrated["checkpoint"]["checkpoint_id"])
+        self.assertEqual(package["as_of"], migrated["checkpoint"]["created_at"])
+        self.assertTrue(verify_checkpoint_integrity(migrated["checkpoint"]))
+        self.assertEqual(original_legacy_bytes, canonical_json_bytes(legacy))
+        self.assertEqual(migrated["checkpoint"], replayed["checkpoint"])
+        self.assertEqual(len(legacy["recent_changes"]), len(migrated["checkpoint"]["recent_changes"]))
+        for prior, upgraded in zip(
+            legacy["recent_changes"], migrated["checkpoint"]["recent_changes"], strict=True
+        ):
+            self.assertEqual("STATE_ACTIVATED", upgraded["impact"])
+            self.assertEqual(prior, {key: value for key, value in upgraded.items() if key != "impact"})
+
+        corrupt_legacy = copy.deepcopy(legacy)
+        corrupt_legacy["recent_changes"][0]["meaning"] = "Changed after the legacy seal."
+        corrupt_package = copy.deepcopy(package)
+        corrupt_package["checkpoints"] = {
+            "primary": corrupt_legacy,
+            "fallbacks": [copy.deepcopy(demo_package()["checkpoints"]["primary"])],
+        }
+        recovered = orient(corrupt_package)
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", recovered["base_checkpoint"]["status"])
+        self.assertIn(
+            "integrity mismatch",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_legacy_fact_history_survives_explicit_later_receipt_suspension(self):
+        initial_package = demo_package()
+        passing_receipt = receipt_by_id(initial_package)
+        passing_receipt["status"] = "PASS"
+        passing_receipt["checks"] = [
+            {"id": item["id"], "status": "PASS"}
+            for item in passing_receipt["checks"]
+        ]
+        passing_receipt["summary"] = "Clean checkout passed."
+        passing_receipt["validator_id"] = "ZNAK_ORIENT_LOCAL_TEST_RUNNER"
+        legacy = orient(copy.deepcopy(initial_package))["checkpoint"]
+        for change in legacy["recent_changes"]:
+            change.pop("impact")
+        legacy = seal_checkpoint(legacy)
+
+        follow_up = copy.deepcopy(initial_package)
+        follow_up["as_of"] = "2026-07-19T08:45:00+02:00"
+        follow_up["checkpoints"] = {"primary": legacy, "fallbacks": []}
+        follow_up["changes"] = []
+        failing_receipt = copy.deepcopy(passing_receipt)
+        failing_receipt.update(
+            {
+                "receipt_id": "vr-clean-later-fail",
+                "status": "FAIL",
+                "checked_at": "2026-07-19T08:35:00+02:00",
+                "summary": "Later clean-checkout validation failed.",
+                "checks": [{"id": "clean-checkout", "status": "FAIL"}],
+            }
+        )
+        follow_up["validation_receipts"].append(failing_receipt)
+
+        migrated = orient(follow_up)
+
+        self.assertEqual(
+            "PRIMARY_VALID_LEGACY_MIGRATED",
+            migrated["base_checkpoint"]["status"],
+        )
+        self.assertFalse(
+            any(
+                lamp["type"] == "FACT"
+                and lamp["subject"] == "project.completion"
+                for lamp in migrated["checkpoint"]["active_lamps"]
+            )
+        )
+        self.assertTrue(
+            any(
+                conflict["status"] == "DISPUTED"
+                and conflict["subject"] == "validation.project.completion"
+                and any(
+                    claim["claim_id"] == "lamp:fact:project.completion"
+                    for claim in conflict["claims"]
+                )
+                for conflict in migrated["checkpoint"]["conflicts"]
+            )
+        )
+        self.assertTrue(
+            any(
+                change["content_type"] == "FACT"
+                and change["impact"] == "STATE_ACTIVATED"
+                for change in migrated["checkpoint"]["recent_changes"]
+            )
+        )
+
+        forged = copy.deepcopy(migrated["checkpoint"])
+        retained_fact = next(
+            change
+            for change in forged["recent_changes"]
+            if change["content_type"] == "FACT"
+            and change["subject"] == "project.completion"
+            and change["impact"] == "STATE_ACTIVATED"
+        )
+        retained_fact["meaning"] = "Fabricated fact without matching proof."
+        retained_fact["after"]["value"] = retained_fact["meaning"]
+        receipt_conflict = next(
+            conflict
+            for conflict in forged["conflicts"]
+            if conflict["subject"] == "validation.project.completion"
+        )
+        suspended_claim = next(
+            claim
+            for claim in receipt_conflict["claims"]
+            if claim["claim_id"] == "lamp:fact:project.completion"
+        )
+        suspended_claim["value"]["fact_value"] = retained_fact["meaning"]
+
+        forged_package = copy.deepcopy(follow_up)
+        forged_package["checkpoints"] = {
+            "primary": seal_checkpoint(forged),
+            "fallbacks": [copy.deepcopy(legacy)],
+        }
+        recovered = orient(forged_package)
+
+        self.assertEqual(
+            "FALLBACK_VALID_AFTER_CORRUPTION_LEGACY_MIGRATED",
+            recovered["base_checkpoint"]["status"],
+        )
+        self.assertIn(
+            "does not match final state projection",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_legacy_03c_checkpoint_with_ambiguous_impact_uses_valid_fallback(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        package["changes"] = [
+            state_change(
+                "chg-ambiguous-legacy-risk",
+                5,
+                "RISK",
+                "ACTIVATE",
+                "risk.ambiguous-legacy",
+                "This record will be made structurally ambiguous.",
+            )
+        ]
+        legacy = orient(copy.deepcopy(package))["checkpoint"]
+        legacy["recent_changes"][0].pop("impact")
+        legacy["recent_changes"][0]["operation"] = "MOVE"
+        legacy = seal_checkpoint(legacy)
+        fallback = copy.deepcopy(demo_package()["checkpoints"]["primary"])
+        package["checkpoints"] = {"primary": legacy, "fallbacks": [fallback]}
+        package["changes"] = []
+
+        recovered = orient(package)
+
+        self.assertEqual("FALLBACK_VALID_AFTER_CORRUPTION", recovered["base_checkpoint"]["status"])
+        self.assertIn(
+            "impact is not unambiguously derivable",
+            recovered["base_checkpoint"]["rejected_candidates"][0]["reason"],
+        )
+
+    def test_destructive_operations_cannot_be_appended_as_disputed_claims(self):
+        initial_package = demo_package()
+        initial = orient(initial_package)
+
+        for operation in ("DEACTIVATE", "INVALIDATE", "SUPERSEDE"):
+            with self.subTest(operation=operation):
+                package = demo_package()
+                package["as_of"] = "2026-07-19T08:45:00+02:00"
+                package["checkpoints"] = {"primary": initial["checkpoint"], "fallbacks": []}
+                change = state_change(
+                    f"chg-disputed-{operation.lower()}",
+                    20,
+                    "DECISION",
+                    operation,
+                    "demo.entrypoint",
+                    "python app.py --demo",
+                    epistemic="VERIFIED",
+                    authority="AUTHORIZED",
+                    expected_checkpoint_id=initial["checkpoint"]["checkpoint_id"],
+                )
+                change["source_ids"] = ["src-entrypoint-new"]
+                if operation == "SUPERSEDE":
+                    change["supersedes"] = "lamp:decision:demo.entrypoint"
+                package["changes"] = [change]
+
+                result = orient(package)
+
+                self.assertEqual(
+                    "DISPUTED_CONFLICT_REQUIRES_RESOLVE",
+                    result["intake"][0]["reason"],
+                )
+                conflict = next(
+                    item
+                    for item in result["checkpoint"]["conflicts"]
+                    if item["subject"] == "demo.entrypoint"
+                )
+                self.assertEqual("DISPUTED", conflict["status"])
+                self.assertFalse(
+                    any(
+                        lamp["subject"] == "demo.entrypoint"
+                        for lamp in result["checkpoint"]["active_lamps"]
+                    )
+                )
+
+    def test_operation_specific_target_fields_fail_closed(self):
+        cases = [
+            ("CREATE", "supersedes", "lamp:risk:target-fields", "SUPERSESSION_FIELD_REQUIRES_SUPERSEDE_OPERATION"),
+            ("SUPERSEDE", None, None, "SUPERSEDE_REQUIRES_TARGET"),
+            ("CREATE", "resolves_conflict_id", "conflict:risk:target-fields", "RESOLUTION_FIELD_REQUIRES_RESOLVE_OPERATION"),
+            ("RESOLVE", None, None, "RESOLVE_REQUIRES_CONFLICT_TARGET"),
+        ]
+        for operation, field, value, expected_reason in cases:
+            with self.subTest(operation=operation, field=field):
+                package = demo_package()
+                package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+                change = state_change(
+                    f"chg-target-field-{operation.lower()}-{field or 'missing'}",
+                    5,
+                    "RISK",
+                    operation,
+                    "target-fields",
+                    "Operation-specific fields are closed.",
+                )
+                if field is not None:
+                    change[field] = value
+                package["changes"] = [change]
+
+                result = orient(package)
+
+                self.assertEqual(expected_reason, result["intake"][0]["reason"])
+
+    def test_same_value_supersede_is_still_recorded_as_state_replacement(self):
+        package = demo_package()
+        package["validation_receipts"] = [receipt_by_id(package, "vr-core-001")]
+        change = state_change(
+            "chg-same-value-supersede",
+            5,
+            "DECISION",
+            "SUPERSEDE",
+            "demo.entrypoint",
+            "python -m znak_orient serve --host 127.0.0.1 --port 8765",
+            epistemic="VERIFIED",
+            authority="AUTHORIZED",
+        )
+        change["supersedes"] = "lamp:decision:demo.entrypoint"
+        change["source_ids"] = ["src-entrypoint-old"]
+        package["changes"] = [change]
+
+        result = orient(package)
+        retained = result["checkpoint"]["recent_changes"][0]
+
+        self.assertEqual("APPLIED", result["intake"][0]["status"])
+        self.assertEqual("SUPERSEDE", retained["operation"])
+        self.assertEqual("STATE_REPLACED", retained["impact"])
+        self.assertEqual(retained["before"]["value"], retained["after"]["value"])
+
+    def test_meaningful_history_compaction_preserves_orientation_after_required_cas_rebase(self):
+        prefix_changes = [
+            state_change(
+                "chg-history-risk",
+                5,
+                "RISK",
+                "ACTIVATE",
+                "risk.meaningful-history",
+                "The release dependency is open.",
+            ),
+            state_change(
+                "chg-history-connection",
+                6,
+                "CONNECTION",
+                "CREATE",
+                "connection.history-to-goal",
+                {"from": "risk.meaningful-history", "to": "project.primary"},
+            ),
+        ]
+        prefix_package = demo_package()
+        prefix_package["as_of"] = "2026-07-19T08:10:00+02:00"
+        prefix_package["validation_receipts"] = [receipt_by_id(prefix_package, "vr-core-001")]
+        prefix_package["changes"] = copy.deepcopy(prefix_changes)
+        compacted_prefix = orient(prefix_package)["checkpoint"]
+
+        full_tail = state_change(
+            "chg-history-risk-superseded",
+            20,
+            "RISK",
+            "SUPERSEDE",
+            "risk.meaningful-history",
+            "The release dependency now has a bounded mitigation.",
+        )
+        full_tail["supersedes"] = "lamp:risk:risk.meaningful-history"
+        compact_tail = copy.deepcopy(full_tail)
+        compact_tail["expected_checkpoint_id"] = compacted_prefix["checkpoint_id"]
+        self.assertEqual(
+            {"expected_checkpoint_id"},
+            {
+                key
+                for key in full_tail
+                if full_tail[key] != compact_tail[key]
+            },
+        )
+
+        full_package = demo_package()
+        full_package["validation_receipts"] = [receipt_by_id(full_package, "vr-core-001")]
+        full_package["changes"] = copy.deepcopy(prefix_changes) + [full_tail]
+        full_result = orient(full_package)
+
+        compact_package = demo_package()
+        compact_package["validation_receipts"] = [receipt_by_id(compact_package, "vr-core-001")]
+        compact_package["checkpoints"] = {"primary": compacted_prefix, "fallbacks": []}
+        compact_package["changes"] = [compact_tail]
+        compact_result = orient(compact_package)
+
+        semantic_checkpoint_fields = {
+            "last_sequence",
+            "city_position",
+            "city_position_source_ids",
+            "active_lamps",
+            "conflicts",
+            "unknowns",
+            "voltage",
+            "primary_next_step",
+            "source_pointers",
+            "validation_receipt_pointers",
+        }
+        self.assertEqual(
+            {key: full_result["checkpoint"][key] for key in semantic_checkpoint_fields},
+            {key: compact_result["checkpoint"][key] for key in semantic_checkpoint_fields},
+        )
+        self.assertEqual(
+            full_result["checkpoint"]["recent_changes"][-1],
+            compact_result["checkpoint"]["recent_changes"][-1],
+        )
+        self.assertEqual("STATE_REPLACED", compact_result["checkpoint"]["recent_changes"][0]["impact"])
 
     def test_noise_only_does_not_create_a_checkpoint(self):
         baseline_package = demo_package()

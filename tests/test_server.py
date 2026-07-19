@@ -67,14 +67,21 @@ class ServerTests(unittest.TestCase):
         self.assertIn('<button class="file-control" id="choose-package" type="button">', body)
         self.assertIn('data-filter="ALL" aria-pressed="true"', body)
         self.assertIn('id="orientation-status" role="status"', body)
+        self.assertIn('id="toast" aria-hidden="true"', body)
+        self.assertNotIn('id="toast" role="status"', body)
         self.assertIn('<th scope="col">Source</th>', body)
         self.assertEqual(1, body.count('id="assistant-cue"'))
         self.assertNotIn('id="next-step-title"', body)
 
         with self.get("/app.js") as response:
             script = response.read().decode("utf-8")
+        normalized_script = script.replace("\r\n", "\n")
         self.assertIn('setText("orientation-status",', script)
         self.assertIn('item.setAttribute("aria-pressed", String(selected))', script)
+        self.assertIn('function showError(message) {', normalized_script)
+        self.assertNotIn('error.hidden = false;\n  showToast(message);', normalized_script)
+        self.assertIn('function showToast(message, announce = true) {', normalized_script)
+        self.assertIn('showToast(`Orientation updated: ${body.checkpoint.voltage}. One next action selected.`, false);', normalized_script)
         self.assertNotIn('setText("next-step-title",', script)
 
         with self.get("/styles.css") as response:
@@ -97,6 +104,21 @@ class ServerTests(unittest.TestCase):
             )
         self.assertNotIn("infinite", styles)
         self.assertNotIn("linear-gradient", styles)
+        self.assertIn("body { min-width: 0;", styles)
+        self.assertIn(".panel { min-width: 0;", styles)
+        self.assertIn("overflow-wrap: anywhere", styles)
+        self.assertIn(".run-meta span { white-space: normal; overflow: visible; overflow-wrap: anywhere;", styles)
+        self.assertIn("@media (forced-colors: active)", styles)
+        self.assertIn("outline: 3px solid Highlight", styles)
+        self.assertIn(".filter.active", styles)
+        self.assertIn(".toast { border: 1px solid CanvasText; }", styles)
+        self.assertIn(".guide-body, .guide-head { fill: Canvas; stroke: CanvasText; }", styles)
+        self.assertIn(".guide-emblem, .guide-direction, .guide-marker { stroke: Highlight; }", styles)
+
+    def test_browser_recorder_closes_chromium_in_finally(self):
+        recorder = (ROOT / "tools" / "record_demo.cjs").read_text(encoding="utf-8")
+        self.assertIn("} finally {", recorder)
+        self.assertIn("if (browser) await browser.close();", recorder)
 
     def test_demo_api_returns_scoped_pass_and_blocked_project_position(self):
         with self.get("/api/demo") as response:

@@ -68,3 +68,5 @@ Python, HTML, CSS, JavaScript, Git, Codex for Windows, local Chromium.
 ## Claim note for judges
 
 The synthetic fixture and local tests prove the scoped deterministic behavior in this repository. They do not prove external truth, production security, canonical X30 conformance, or superiority over raw notes.
+
+The exact test, receipt, artifact, and non-execution mapping is maintained in the [claim-to-evidence matrix](CLAIM_EVIDENCE_MATRIX.md).

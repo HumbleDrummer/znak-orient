@@ -10,7 +10,10 @@ from .contracts import (
     AUTHORITIES,
     CONTENT_TYPES,
     EPISTEMIC_STATES,
+    OPERATIONS,
     SCHEMA_VERSION,
+    STATE_CHANGE_IMPACTS,
+    STATE_CHANGE_OPERATION_IMPACTS,
     TRUSTED_AUTHORITY_SOURCE_KINDS,
     TRUSTED_VALIDATOR_IDS,
     ContractError,
@@ -54,10 +57,506 @@ SUCCESS_CONDITION_TYPES = {
     "validation_pass",
     "validation_receipt_retained",
 }
+_IMPACT_REASONS = {
+    "STATE_ACTIVATED": "AUTHORIZED_MEANINGFUL_CHANGE",
+    "STATE_REPLACED": "EXPLICIT_SUPERSESSION",
+    "STATE_DEACTIVATED": "STATE_DEACTIVATED",
+    "STATE_METADATA_UPDATED": "STATE_METADATA_UPDATED",
+    "EVIDENCE_EXTENDED": "CORROBORATING_SOURCE_MERGED",
+    "CONFLICT_OPENED": "CONFLICT_PRESERVED",
+    "CONFLICT_EXTENDED": "CONFLICT_PRESERVED",
+    "CONFLICT_RESOLVED": "AUTHORIZED_CONFLICT_RESOLUTION",
+}
+_LEGACY_RECENT_CHANGE_FIELDS = {
+    "change_id",
+    "sequence",
+    "object_type",
+    "content_type",
+    "subject",
+    "status",
+    "reason",
+    "source_ids",
+    "observed_at",
+    "operation",
+    "epistemic",
+    "authority",
+    "material",
+    "meaning",
+    "before",
+    "after",
+}
+_CURRENT_RECENT_CHANGE_FIELDS = _LEGACY_RECENT_CHANGE_FIELDS | {"impact"}
 
 
 def _text(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _same_value(left: Any, right: Any) -> bool:
+    try:
+        return sha256_hex(left) == sha256_hex(right)
+    except TypeError:
+        return False
+
+
+def _lamp_snapshot_matches_change(
+    change: dict[str, Any], lamp: Any, *, bind_to_meaning: bool
+) -> bool:
+    if not isinstance(lamp, dict):
+        return False
+    required = {
+        "lamp_id",
+        "type",
+        "subject",
+        "value",
+        "epistemic",
+        "authority",
+        "source_ids",
+        "updated_at",
+        "material",
+    }
+    if not required.issubset(lamp) or not set(lamp).issubset(
+        required | {"validation_receipt_id"}
+    ):
+        return False
+    if (
+        lamp.get("lamp_id")
+        != f"lamp:{change.get('content_type', '').lower()}:{change.get('subject', '')}"
+        or lamp.get("type") != change.get("content_type")
+        or lamp.get("subject") != change.get("subject")
+    ):
+        return False
+    if not bind_to_meaning:
+        return True
+    return (
+        _same_value(lamp.get("value"), change.get("meaning"))
+        and lamp.get("epistemic") == change.get("epistemic")
+        and lamp.get("authority") == change.get("authority")
+        and lamp.get("material") == change.get("material")
+        and lamp.get("updated_at") == change.get("observed_at")
+        and isinstance(lamp.get("source_ids"), list)
+        and set(change.get("source_ids", [])).issubset(lamp["source_ids"])
+    )
+
+
+def _conflict_snapshot_matches_change(
+    change: dict[str, Any], conflict: Any, *, status: str
+) -> bool:
+    if not isinstance(conflict, dict):
+        return False
+    required = {
+        "conflict_id",
+        "type",
+        "subject",
+        "material",
+        "status",
+        "classification",
+        "reason",
+        "claims",
+    }
+    return (
+        required.issubset(conflict)
+        and set(conflict).issubset(
+            required | {"resolution_history", "resolution_change_id"}
+        )
+        and conflict.get("conflict_id")
+        == f"conflict:{change.get('content_type', '').lower()}:{change.get('subject', '')}"
+        and conflict.get("type") == change.get("content_type")
+        and conflict.get("subject") == change.get("subject")
+        and conflict.get("status") == status
+        and isinstance(conflict.get("claims"), list)
+    )
+
+
+def _claim_matches_change(change: dict[str, Any], claim: Any) -> bool:
+    return (
+        isinstance(claim, dict)
+        and claim.get("claim_id") == change.get("change_id")
+        and _same_value(claim.get("value"), change.get("meaning"))
+        and claim.get("epistemic") == "DISPUTED"
+        and claim.get("asserted_epistemic") == change.get("epistemic")
+        and claim.get("authority") == change.get("authority")
+        and claim.get("observed_at") == change.get("observed_at")
+        and isinstance(claim.get("source_ids"), list)
+        and set(change.get("source_ids", [])).issubset(claim["source_ids"])
+    )
+
+
+def _claim_matches_lamp(claim: Any, lamp: dict[str, Any]) -> bool:
+    return (
+        isinstance(claim, dict)
+        and claim.get("claim_id") == lamp.get("lamp_id")
+        and _same_value(claim.get("value"), lamp.get("value"))
+        and claim.get("epistemic") == "DISPUTED"
+        and claim.get("asserted_epistemic") == lamp.get("epistemic")
+        and claim.get("authority") == lamp.get("authority")
+        and claim.get("source_ids") == lamp.get("source_ids")
+        and claim.get("observed_at") == lamp.get("updated_at")
+    )
+
+
+def _recent_change_impact_is_consistent(change: dict[str, Any]) -> bool:
+    impact = change.get("impact")
+    operation = change.get("operation")
+    before = change.get("before")
+    after = change.get("after")
+    if (
+        impact not in STATE_CHANGE_IMPACTS
+        or impact not in STATE_CHANGE_OPERATION_IMPACTS.get(operation, set())
+        or change.get("reason") != _IMPACT_REASONS[impact]
+    ):
+        return False
+    if impact == "STATE_ACTIVATED":
+        return (
+            change.get("status") == "APPLIED"
+            and before is None
+            and _lamp_snapshot_matches_change(change, after, bind_to_meaning=True)
+        )
+    if impact == "STATE_DEACTIVATED":
+        return (
+            change.get("status") == "APPLIED"
+            and _lamp_snapshot_matches_change(change, before, bind_to_meaning=False)
+            and _same_value(before.get("value"), change.get("meaning"))
+            and after is None
+        )
+    if impact == "STATE_REPLACED":
+        return (
+            change.get("status") == "APPLIED"
+            and _lamp_snapshot_matches_change(change, before, bind_to_meaning=False)
+            and _lamp_snapshot_matches_change(change, after, bind_to_meaning=True)
+            and before.get("lamp_id") == after.get("lamp_id")
+        )
+    if impact in {"STATE_METADATA_UPDATED", "EVIDENCE_EXTENDED"}:
+        if not (
+            change.get("status") == "APPLIED"
+            and _lamp_snapshot_matches_change(change, before, bind_to_meaning=False)
+            and _lamp_snapshot_matches_change(change, after, bind_to_meaning=True)
+            and before.get("lamp_id") == after.get("lamp_id")
+            and _same_value(before.get("value"), after.get("value"))
+        ):
+            return False
+        if impact == "EVIDENCE_EXTENDED":
+            return (
+                before.get("epistemic") == after.get("epistemic")
+                and before.get("authority") == after.get("authority")
+                and before.get("material") == after.get("material")
+                and before.get("validation_receipt_id")
+                == after.get("validation_receipt_id")
+                and isinstance(before.get("source_ids"), list)
+                and isinstance(after.get("source_ids"), list)
+                and set(before["source_ids"]) < set(after["source_ids"])
+            )
+        return any(
+            before.get(field) != after.get(field)
+            for field in ("epistemic", "authority", "material", "validation_receipt_id")
+        )
+    if impact == "CONFLICT_OPENED":
+        if not (
+            change.get("status") == "DISPUTED"
+            and _lamp_snapshot_matches_change(change, before, bind_to_meaning=False)
+            and _conflict_snapshot_matches_change(change, after, status="DISPUTED")
+        ):
+            return False
+        new_claim_is_bound = any(
+            _claim_matches_change(change, claim) for claim in after["claims"]
+        )
+        if after.get("classification") == "CONTRADICTION_UNRESOLVED":
+            return (
+                len(after["claims"]) == 2
+                and after.get("material")
+                == bool(before.get("material") or change.get("material"))
+                and any(_claim_matches_lamp(claim, before) for claim in after["claims"])
+                and new_claim_is_bound
+            )
+        history = after.get("resolution_history")
+        return (
+            after.get("classification") == "CONTRADICTION_REOPENED"
+            and isinstance(history, list)
+            and bool(history)
+            and (
+                after.get("material") is True
+                or not (before.get("material") or change.get("material"))
+            )
+            and _same_value(history[-1].get("value"), before.get("value"))
+            and new_claim_is_bound
+        )
+    if impact == "CONFLICT_EXTENDED":
+        if not (
+            change.get("status") == "DISPUTED"
+            and _conflict_snapshot_matches_change(change, before, status="DISPUTED")
+            and _conflict_snapshot_matches_change(change, after, status="DISPUTED")
+            and len(after["claims"]) == len(before["claims"]) + 1
+            and all(claim in after["claims"] for claim in before["claims"])
+            and all(
+                before.get(field) == after.get(field)
+                for field in set(before) | set(after)
+                if field not in {"claims", "material"}
+            )
+            and after.get("material")
+            == bool(before.get("material") or change.get("material"))
+        ):
+            return False
+        return any(_claim_matches_change(change, claim) for claim in after["claims"])
+    if impact == "CONFLICT_RESOLVED":
+        return (
+            change.get("status") == "APPLIED"
+            and _conflict_snapshot_matches_change(change, before, status="DISPUTED")
+            and _lamp_snapshot_matches_change(change, after, bind_to_meaning=True)
+        )
+    return False
+
+
+def _derive_legacy_impact(change: dict[str, Any]) -> str | None:
+    candidates = [
+        impact
+        for impact in sorted(STATE_CHANGE_IMPACTS)
+        if _recent_change_impact_is_consistent({**change, "impact": impact})
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _fact_lamp_has_explicit_receipt_suspension(
+    checkpoint: dict[str, Any],
+    lamp: Any,
+    receipts: dict[str, dict[str, Any]],
+    *,
+    suspended_by: str | None = None,
+) -> bool:
+    if not isinstance(lamp, dict) or lamp.get("type") != "FACT":
+        return False
+    receipt_id = lamp.get("validation_receipt_id")
+    proof_receipt = receipts.get(receipt_id) if _text(receipt_id) else None
+    receipt_pointers = {
+        pointer.get("receipt_id"): pointer
+        for pointer in checkpoint.get("validation_receipt_pointers", [])
+        if isinstance(pointer, dict) and _text(pointer.get("receipt_id"))
+    }
+    retained_pointer = receipt_pointers.get(receipt_id)
+    if (
+        not _text(receipt_id)
+        or proof_receipt is None
+        or not _receipt_is_trusted_pass(proof_receipt)
+        or proof_receipt.get("subject") != lamp.get("subject")
+        or proof_receipt.get("assertion_sha256")
+        != _assertion_hash(lamp.get("subject"), lamp.get("value"))
+        or not set(proof_receipt.get("source_ids", [])).issubset(
+            lamp.get("source_ids", [])
+        )
+        or retained_pointer is None
+        or retained_pointer.get("subject") != lamp.get("subject")
+    ):
+        return False
+    conflict_subject = f"validation.{lamp.get('subject', '')}"
+    receipt_conflict = next(
+        (
+            conflict
+            for conflict in checkpoint.get("conflicts", [])
+            if isinstance(conflict, dict)
+            and conflict.get("conflict_id") == f"conflict:fact:{conflict_subject}"
+            and conflict.get("type") == "FACT"
+            and conflict.get("subject") == conflict_subject
+            and conflict.get("classification") == "CONTRADICTORY_VALIDATION_RECEIPTS"
+        ),
+        None,
+    )
+    if receipt_conflict is None:
+        return False
+    suspended_claim = {
+        "claim_id": lamp.get("lamp_id"),
+        "value": {
+            "fact_subject": lamp.get("subject"),
+            "fact_value": copy.deepcopy(lamp.get("value")),
+            "validation_receipt_id": receipt_id,
+        },
+        "epistemic": "DISPUTED",
+        "asserted_epistemic": lamp.get("epistemic"),
+        "authority": lamp.get("authority"),
+        "source_ids": lamp.get("source_ids"),
+        "observed_at": lamp.get("updated_at"),
+    }
+    claims = receipt_conflict.get("claims", [])
+    if suspended_claim not in claims:
+        return False
+    try:
+        lamp_time = parse_instant(
+            lamp.get("updated_at"), "CP-LAMP-TIME", "lamp.updated_at"
+        )
+        if parse_instant(
+            proof_receipt.get("checked_at"),
+            "CP-RECEIPT-TIME",
+            "receipt.checked_at",
+        ) > lamp_time:
+            return False
+        suspension_deadline = (
+            parse_instant(suspended_by, "CP-CHANGE-TIME", "change.observed_at")
+            if suspended_by is not None
+            else None
+        )
+        return any(
+            claim.get("claim_id") in receipts
+            and receipts[claim["claim_id"]].get("validator_id")
+            in TRUSTED_VALIDATOR_IDS
+            and receipts[claim["claim_id"]].get("subject")
+            == lamp.get("subject")
+            and _receipt_claim_identity(receipts[claim["claim_id"]])
+            != _receipt_claim_identity(proof_receipt)
+            and parse_instant(
+                claim.get("observed_at"), "CP-CLAIM-TIME", "claim.observed_at"
+            )
+            > lamp_time
+            and (
+                suspension_deadline is None
+                or parse_instant(
+                    claim.get("observed_at"),
+                    "CP-CLAIM-TIME",
+                    "claim.observed_at",
+                )
+                <= suspension_deadline
+            )
+            for claim in claims
+            if isinstance(claim, dict)
+        )
+    except ContractError:
+        return False
+
+
+def _recent_change_chain_is_continuous(
+    checkpoint: dict[str, Any], receipts: dict[str, dict[str, Any]]
+) -> bool:
+    previous_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for change in checkpoint.get("recent_changes", []):
+        key = (change["content_type"], change["subject"])
+        previous = previous_by_key.get(key)
+        if previous is not None and previous["after"] != change["before"]:
+            receipt_suspended_between_changes = (
+                key[0] == "FACT"
+                and change["before"] is None
+                and _fact_lamp_has_explicit_receipt_suspension(
+                    checkpoint,
+                    previous.get("after"),
+                    receipts,
+                    suspended_by=change["observed_at"],
+                )
+            )
+            if not receipt_suspended_between_changes:
+                return False
+        previous_by_key[key] = change
+    return True
+
+
+def _latest_recent_changes_match_projection(
+    checkpoint: dict[str, Any], receipts: dict[str, dict[str, Any]]
+) -> bool:
+    recent_changes = checkpoint.get("recent_changes", [])
+    ordered = [(change["sequence"], change["change_id"]) for change in recent_changes]
+    if ordered != sorted(ordered):
+        return False
+    latest_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for change in recent_changes:
+        latest_by_key[(change["content_type"], change["subject"])] = change
+    lamps = {
+        (lamp["type"], lamp["subject"]): lamp
+        for lamp in checkpoint.get("active_lamps", [])
+    }
+    conflicts = {
+        (conflict["type"], conflict["subject"]): conflict
+        for conflict in checkpoint.get("conflicts", [])
+    }
+    for key, change in latest_by_key.items():
+        impact = change["impact"]
+        lamp = lamps.get(key)
+        conflict = conflicts.get(key)
+        if impact in {
+            "STATE_ACTIVATED",
+            "STATE_REPLACED",
+            "STATE_METADATA_UPDATED",
+            "EVIDENCE_EXTENDED",
+        }:
+            receipt_suspended = (
+                key[0] == "FACT"
+                and lamp is None
+                and conflict is None
+                and _fact_lamp_has_explicit_receipt_suspension(
+                    checkpoint, change["after"], receipts
+                )
+            )
+            if not receipt_suspended and (
+                lamp != change["after"] or conflict is not None
+            ):
+                return False
+        elif impact == "STATE_DEACTIVATED":
+            if lamp is not None or conflict is not None:
+                return False
+        elif impact in {"CONFLICT_OPENED", "CONFLICT_EXTENDED"}:
+            if lamp is not None or conflict != change["after"]:
+                return False
+        elif impact == "CONFLICT_RESOLVED":
+            history = conflict.get("resolution_history") if isinstance(conflict, dict) else None
+            receipt_suspended = (
+                key[0] == "FACT"
+                and lamp is None
+                and _fact_lamp_has_explicit_receipt_suspension(
+                    checkpoint, change["after"], receipts
+                )
+            )
+            if (
+                (not receipt_suspended and lamp != change["after"])
+                or not isinstance(conflict, dict)
+                or conflict.get("status") != "RESOLVED"
+                or conflict.get("resolution_change_id") != change["change_id"]
+                or not isinstance(history, list)
+                or not history
+                or history[-1].get("change_id") != change["change_id"]
+                or not _same_value(history[-1].get("value"), change["meaning"])
+            ):
+                return False
+        else:
+            return False
+    return True
+
+
+def _checkpoint_integrity_shape_is_valid(checkpoint: dict[str, Any]) -> bool:
+    integrity = checkpoint.get("integrity")
+    return (
+        isinstance(integrity, dict)
+        and set(integrity) == {"algorithm", "value"}
+        and integrity.get("algorithm") == "sha256"
+        and isinstance(integrity.get("value"), str)
+        and len(integrity["value"]) == 64
+        and all(character in "0123456789abcdef" for character in integrity["value"])
+    )
+
+
+def _prepare_checkpoint_candidate(
+    checkpoint: Any,
+) -> tuple[Any, bool, str | None]:
+    candidate = copy.deepcopy(checkpoint)
+    if not isinstance(candidate, dict) or not _checkpoint_integrity_shape_is_valid(candidate):
+        return candidate, False, None
+    try:
+        if not verify_checkpoint_integrity(candidate):
+            return candidate, False, None
+    except TypeError:
+        return candidate, False, None
+    recent_changes = candidate.get("recent_changes")
+    if not isinstance(recent_changes, list) or not recent_changes:
+        return candidate, False, None
+    shapes = [set(change) if isinstance(change, dict) else set() for change in recent_changes]
+    if all(shape == _CURRENT_RECENT_CHANGE_FIELDS for shape in shapes):
+        return candidate, False, None
+    if not all(shape == _LEGACY_RECENT_CHANGE_FIELDS for shape in shapes):
+        return candidate, False, None
+    migrated = copy.deepcopy(candidate)
+    for change in migrated["recent_changes"]:
+        impact = _derive_legacy_impact(change)
+        if impact is None:
+            return (
+                candidate,
+                False,
+                "legacy checkpoint impact is not unambiguously derivable",
+            )
+        change["impact"] = impact
+    return seal_checkpoint(migrated), True, None
 
 
 def _assertion_hash(subject: str, value: Any) -> str:
@@ -274,15 +773,7 @@ def _checkpoint_is_semantically_valid(
     }
     if set(checkpoint) != required_checkpoint_fields:
         return False, "checkpoint top-level shape is not closed"
-    integrity = checkpoint.get("integrity")
-    if (
-        not isinstance(integrity, dict)
-        or set(integrity) != {"algorithm", "value"}
-        or integrity.get("algorithm") != "sha256"
-        or not isinstance(integrity.get("value"), str)
-        or len(integrity["value"]) != 64
-        or any(character not in "0123456789abcdef" for character in integrity["value"])
-    ):
+    if not _checkpoint_integrity_shape_is_valid(checkpoint):
         return False, "checkpoint integrity shape is not closed"
     if checkpoint.get("schema_version") != SCHEMA_VERSION:
         return False, "unsupported checkpoint schema"
@@ -729,34 +1220,22 @@ def _checkpoint_is_semantically_valid(
     for change in checkpoint["recent_changes"]:
         if (
             not isinstance(change, dict)
-            or set(change)
-            != {
-                "change_id",
-                "sequence",
-                "object_type",
-                "content_type",
-                "subject",
-                "status",
-                "reason",
-                "source_ids",
-                "observed_at",
-                "operation",
-                "epistemic",
-                "authority",
-                "material",
-                "meaning",
-                "before",
-                "after",
-            }
+            or set(change) != _CURRENT_RECENT_CHANGE_FIELDS
             or change.get("object_type") != "STATE_CHANGE"
             or not _text(change.get("change_id"))
             or not isinstance(change.get("sequence"), int)
             or isinstance(change.get("sequence"), bool)
             or change.get("status") not in {"APPLIED", "DISPUTED"}
             or not _text(change.get("reason"))
+            or change.get("content_type") not in CONTENT_TYPES
+            or change.get("operation") not in OPERATIONS
+            or change.get("epistemic") not in EPISTEMIC_STATES
+            or change.get("authority") not in AUTHORITIES
+            or not isinstance(change.get("material"), bool)
             or not _source_id_list(change.get("source_ids"), known_source_ids)
             or "before" not in change
             or "after" not in change
+            or not _recent_change_impact_is_consistent(change)
         ):
             return False, "checkpoint recent change is invalid"
         if (
@@ -778,6 +1257,11 @@ def _checkpoint_is_semantically_valid(
             for source_id in change["source_ids"]
         ):
             return False, "checkpoint recent change source postdates the change"
+
+    if not _recent_change_chain_is_continuous(checkpoint, receipts):
+        return False, "checkpoint recent change transition chain is discontinuous"
+    if not _latest_recent_changes_match_projection(checkpoint, receipts):
+        return False, "checkpoint recent change does not match final state projection"
 
     pointers: dict[str, dict[str, Any]] = {}
     for pointer in checkpoint["source_pointers"]:
@@ -864,7 +1348,7 @@ def _select_checkpoint(
     as_of: str,
     sources: dict[str, dict[str, Any]],
     receipts: dict[str, dict[str, Any]],
-) -> tuple[dict[str, Any], str, list[dict[str, str]]]:
+) -> tuple[dict[str, Any], str, list[dict[str, str]], bool]:
     checkpoints = require_mapping(package.get("checkpoints"), "PKG-010", "package.checkpoints")
     require_closed_keys(
         checkpoints,
@@ -913,16 +1397,21 @@ def _select_checkpoint(
                 f"[RECEIPT-ID-REUSE] {receipt_id} changed after checkpointing"
             )
     errors: list[dict[str, str]] = []
-    valid_candidates: list[tuple[Any, bool, str, dict[str, Any]]] = []
+    valid_candidates: list[tuple[Any, bool, str, dict[str, Any], bool]] = []
     for label, checkpoint in candidates:
-        valid, reason = _checkpoint_is_semantically_valid(checkpoint, as_of, sources, receipts)
+        prepared, migrated_legacy, migration_error = _prepare_checkpoint_candidate(checkpoint)
+        if migration_error is None:
+            valid, reason = _checkpoint_is_semantically_valid(prepared, as_of, sources, receipts)
+        else:
+            valid, reason = False, migration_error
         if valid:
             valid_candidates.append(
                 (
-                    parse_instant(checkpoint["created_at"], "CP-SELECT-TIME", "checkpoint.created_at"),
+                    parse_instant(prepared["created_at"], "CP-SELECT-TIME", "checkpoint.created_at"),
                     label == "PRIMARY",
                     label,
-                    checkpoint,
+                    prepared,
+                    migrated_legacy,
                 )
             )
         else:
@@ -931,7 +1420,7 @@ def _select_checkpoint(
             errors.append({"candidate": label, "reason": reason})
     if not valid_candidates:
         raise OrientationError("[CP-RECOVERY] no valid checkpoint or fallback is available")
-    _, is_primary, label, selected = max(
+    _, is_primary, label, selected, migrated_legacy = max(
         valid_candidates,
         key=lambda item: (item[0], item[3]["last_sequence"], item[1], item[3]["checkpoint_id"]),
     )
@@ -961,7 +1450,9 @@ def _select_checkpoint(
         status = "LATEST_VALID_FALLBACK_SELECTED"
     else:
         status = "FALLBACK_VALID_AFTER_CORRUPTION"
-    return copy.deepcopy(selected), status, errors
+    if migrated_legacy:
+        status = f"{status}_LEGACY_MIGRATED"
+    return copy.deepcopy(selected), status, errors, migrated_legacy
 
 
 def _disposition(change: dict[str, Any], status: str, reason: str) -> dict[str, Any]:
@@ -987,6 +1478,27 @@ def _disposition(change: dict[str, Any], status: str, reason: str) -> dict[str, 
             }
         )
     return item
+
+
+def _meaningful_state_change(
+    change: dict[str, Any],
+    status: str,
+    reason: str,
+    impact: str,
+    before: Any,
+    after: Any,
+) -> dict[str, Any]:
+    disposition = _disposition(change, status, reason)
+    disposition.update(
+        {
+            "impact": impact,
+            "before": copy.deepcopy(before),
+            "after": copy.deepcopy(after),
+        }
+    )
+    if not _recent_change_impact_is_consistent(disposition):
+        raise OrientationError("[CHG-IMPACT] generated STATE_CHANGE impact is inconsistent")
+    return disposition
 
 
 def _evidence_source_ids(change: dict[str, Any], receipts: dict[str, dict[str, Any]]) -> list[str]:
@@ -1040,6 +1552,45 @@ def _policy_rejection(
         return "STALE_STATE"
     if change["operation"] == "MOVE":
         return "MOVE_NOT_IMPLEMENTED_IN_MVP"
+    if change.get("supersedes") and change["operation"] != "SUPERSEDE":
+        return "SUPERSESSION_FIELD_REQUIRES_SUPERSEDE_OPERATION"
+    if change["operation"] == "SUPERSEDE" and not change.get("supersedes"):
+        return "SUPERSEDE_REQUIRES_TARGET"
+    if change.get("resolves_conflict_id") and change["operation"] != "RESOLVE":
+        return "RESOLUTION_FIELD_REQUIRES_RESOLVE_OPERATION"
+    if change["operation"] == "RESOLVE" and not change.get("resolves_conflict_id"):
+        return "RESOLVE_REQUIRES_CONFLICT_TARGET"
+    matching_open_conflict = next(
+        (
+            conflict
+            for conflict in conflicts
+            if conflict.get("status") == "DISPUTED"
+            and conflict.get("type") == change["content_type"]
+            and conflict.get("subject") == change["subject"]
+        ),
+        None,
+    )
+    if matching_open_conflict is not None and change["operation"] in {
+        "DEACTIVATE",
+        "INVALIDATE",
+        "SUPERSEDE",
+    }:
+        return "DISPUTED_CONFLICT_REQUIRES_RESOLVE"
+    active_target = next(
+        (
+            lamp
+            for lamp in active_lamps
+            if lamp.get("type") == change["content_type"]
+            and lamp.get("subject") == change["subject"]
+        ),
+        None,
+    )
+    if (
+        active_target is not None
+        and change["operation"] in {"DEACTIVATE", "INVALIDATE"}
+        and not _same_value(active_target.get("value"), change["value"])
+    ):
+        return "DEACTIVATION_MEANING_MISMATCH"
     if change["content_type"] == "GOAL" and not change["material"]:
         return "GOAL_MUST_BE_MATERIAL"
     if change["content_type"] == "CONSTRAINT" and not _constraint_value_is_valid(change["value"]):
@@ -1773,8 +2324,13 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             )
         effective_receipts = [item for item in receipt_list if item["validator_id"] in TRUSTED_VALIDATOR_IDS]
 
-        base, recovery_status, checkpoint_errors = _select_checkpoint(package, as_of, sources, receipts)
+        base, recovery_status, checkpoint_errors, legacy_migration = _select_checkpoint(
+            package, as_of, sources, receipts
+        )
         base_checkpoint_id = base["checkpoint_id"]
+        migrated_recent_changes = (
+            copy.deepcopy(base["recent_changes"]) if legacy_migration else []
+        )
         receipt_pointer_by_id = {
             pointer["receipt_id"]: copy.deepcopy(pointer)
             for pointer in base.get("validation_receipt_pointers", [])
@@ -1967,15 +2523,25 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
                 conflicts[conflict["conflict_id"]] = conflict
-                disposition = _disposition(change, "APPLIED", "AUTHORIZED_CONFLICT_RESOLUTION")
-                disposition["before"] = before_conflict
-                disposition["after"] = copy.deepcopy(resolved_lamp)
+                disposition = _meaningful_state_change(
+                    change,
+                    "APPLIED",
+                    "AUTHORIZED_CONFLICT_RESOLUTION",
+                    "CONFLICT_RESOLVED",
+                    before_conflict,
+                    resolved_lamp,
+                )
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
 
             existing_conflict = conflicts.get(conflict_id)
             if existing_conflict and existing_conflict["status"] == "DISPUTED":
+                if change["operation"] not in {"CREATE", "UPDATE", "ACTIVATE"}:
+                    dispositions.append(
+                        _disposition(change, "REJECTED", "DISPUTED_CONFLICT_REQUIRES_RESOLVE")
+                    )
+                    continue
                 if change["change_id"] in {claim["claim_id"] for claim in existing_conflict["claims"]}:
                     dispositions.append(_disposition(change, "REJECTED", "HISTORICAL_ID_REUSE"))
                     continue
@@ -1997,9 +2563,14 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
                 existing_conflict["material"] = bool(existing_conflict["material"] or change["material"])
-                disposition = _disposition(change, "DISPUTED", "CONFLICT_PRESERVED")
-                disposition["before"] = before_conflict
-                disposition["after"] = copy.deepcopy(existing_conflict)
+                disposition = _meaningful_state_change(
+                    change,
+                    "DISPUTED",
+                    "CONFLICT_PRESERVED",
+                    "CONFLICT_EXTENDED",
+                    before_conflict,
+                    existing_conflict,
+                )
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
@@ -2053,6 +2624,20 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 if sha256_hex(existing["value"]) == sha256_hex(change["value"]):
                     dispositions.append(_disposition(change, "IGNORED", "NO_NEW_MEANING"))
                     continue
+            if change["operation"] == "SUPERSEDE":
+                updated_lamp = _lamp_from_change(change, receipts)
+                state[key] = updated_lamp
+                disposition = _meaningful_state_change(
+                    change,
+                    "APPLIED",
+                    "EXPLICIT_SUPERSESSION",
+                    "STATE_REPLACED",
+                    existing,
+                    updated_lamp,
+                )
+                dispositions.append(disposition)
+                meaningful.append(disposition)
+                continue
             if change["operation"] in {"INVALIDATE", "DEACTIVATE"}:
                 if existing is None:
                     dispositions.append(_disposition(change, "REJECTED", "TARGET_NOT_ACTIVE"))
@@ -2068,9 +2653,14 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                         dispositions.append(_disposition(change, "REJECTED", "RECEIPT_ASSERTION_MISMATCH"))
                         continue
                 state.pop(key)
-                disposition = _disposition(change, "APPLIED", "STATE_DEACTIVATED")
-                disposition["before"] = copy.deepcopy(existing)
-                disposition["after"] = None
+                disposition = _meaningful_state_change(
+                    change,
+                    "APPLIED",
+                    "STATE_DEACTIVATED",
+                    "STATE_DEACTIVATED",
+                    existing,
+                    None,
+                )
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
@@ -2079,24 +2669,22 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 and sha256_hex(existing["value"]) == sha256_hex(change["value"])
             )
             if existing is not None and not same_value:
-                if change.get("supersedes") == existing["lamp_id"]:
-                    updated_lamp = _lamp_from_change(change, receipts)
-                    state[key] = updated_lamp
-                    disposition = _disposition(change, "APPLIED", "EXPLICIT_SUPERSESSION")
-                    disposition["before"] = copy.deepcopy(existing)
-                    disposition["after"] = copy.deepcopy(updated_lamp)
-                else:
-                    opened_conflict = _open_conflict(
-                        existing,
-                        change,
-                        receipts,
-                        existing_conflict if existing_conflict and existing_conflict["status"] == "RESOLVED" else None,
-                    )
-                    conflicts[conflict_id] = opened_conflict
-                    state.pop(key)
-                    disposition = _disposition(change, "DISPUTED", "CONFLICT_PRESERVED")
-                    disposition["before"] = copy.deepcopy(existing)
-                    disposition["after"] = copy.deepcopy(opened_conflict)
+                opened_conflict = _open_conflict(
+                    existing,
+                    change,
+                    receipts,
+                    existing_conflict if existing_conflict and existing_conflict["status"] == "RESOLVED" else None,
+                )
+                conflicts[conflict_id] = opened_conflict
+                state.pop(key)
+                disposition = _meaningful_state_change(
+                    change,
+                    "DISPUTED",
+                    "CONFLICT_PRESERVED",
+                    "CONFLICT_OPENED",
+                    existing,
+                    opened_conflict,
+                )
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
@@ -2121,25 +2709,34 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 if change["content_type"] == "FACT":
                     merged["validation_receipt_id"] = change["validation_receipt_id"]
                 state[key] = merged
-                disposition = _disposition(
+                reason = "STATE_METADATA_UPDATED" if metadata_changed else "CORROBORATING_SOURCE_MERGED"
+                impact = "STATE_METADATA_UPDATED" if metadata_changed else "EVIDENCE_EXTENDED"
+                disposition = _meaningful_state_change(
                     change,
                     "APPLIED",
-                    "STATE_METADATA_UPDATED" if metadata_changed else "CORROBORATING_SOURCE_MERGED",
+                    reason,
+                    impact,
+                    existing,
+                    merged,
                 )
-                disposition["before"] = copy.deepcopy(existing)
-                disposition["after"] = copy.deepcopy(merged)
                 dispositions.append(disposition)
                 meaningful.append(disposition)
                 continue
             created_lamp = _lamp_from_change(change, receipts)
             state[key] = created_lamp
-            disposition = _disposition(change, "APPLIED", "AUTHORIZED_MEANINGFUL_CHANGE")
-            disposition["before"] = None
-            disposition["after"] = copy.deepcopy(created_lamp)
+            disposition = _meaningful_state_change(
+                change,
+                "APPLIED",
+                "AUTHORIZED_MEANINGFUL_CHANGE",
+                "STATE_ACTIVATED",
+                None,
+                created_lamp,
+            )
             dispositions.append(disposition)
             meaningful.append(disposition)
 
         active_lamps = list(state.values())
+        retained_recent_changes = migrated_recent_changes + meaningful
         last_meaningful_sequence = max(
             (item["sequence"] for item in meaningful),
             default=base["last_sequence"],
@@ -2159,7 +2756,8 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             > parse_instant(base["created_at"], "CP-TIME", "checkpoint.created_at")
         ]
         semantic_input_changed = (
-            bool(meaningful)
+            legacy_migration
+            or bool(meaningful)
             or bool(new_effective_receipts)
             or validation_receipt_pointers != base.get("validation_receipt_pointers", [])
             or retained_conflicts != base["conflicts"]
@@ -2200,7 +2798,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 referenced_sources.update(resolution["source_ids"])
         for unknown in unknowns:
             referenced_sources.update(unknown["source_ids"])
-        for change in meaningful:
+        for change in retained_recent_changes:
             referenced_sources.update(change["source_ids"])
         for pointer in validation_receipt_pointers:
             referenced_sources.update(pointer["source_ids"])
@@ -2213,7 +2811,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             "city_position": city_position,
             "city_position_source_ids": sorted(set(position_sources)),
             "active_lamps": sorted(state.values(), key=lambda item: (item["type"], item["subject"])),
-            "recent_changes": meaningful,
+            "recent_changes": retained_recent_changes,
             "conflicts": retained_conflicts,
             "unknowns": unknowns,
             "voltage": voltage,
@@ -2222,7 +2820,8 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             "validation_receipt_pointers": validation_receipt_pointers,
         }
         checkpoint_required = (
-            bool(meaningful)
+            legacy_migration
+            or bool(meaningful)
             or city_position != base["city_position"]
             or retained_conflicts != base["conflicts"]
             or unknowns != base["unknowns"]

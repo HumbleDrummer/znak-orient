@@ -11,7 +11,7 @@ Image generation was not used because the authorized PIN blocks paid or real API
 
 ## Verification methods
 
-The Codex in-app browser loaded the real loopback application, returned a complete accessibility snapshot, executed **Re-run orientation**, changed the intake filter to **Rejected** (8 → 5 of 8 visible items), activated **Copy Recovery Card**, and reported no warning/error console entries. Its viewport override did not change the reported CSS viewport, so local Chromium headless with all non-loopback resolution blocked was used for exact 1440×900, 390×844, and 320×640 responsive checks, a 35.44-second workflow recording, and the retained 23/23 `browser-qa.json` receipt.
+The Codex in-app browser loaded the real loopback application, returned a complete accessibility snapshot, executed **Re-run orientation**, changed the intake filter to **Rejected** (8 → 5 of 8 visible items), activated **Copy Recovery Card**, and reported no warning/error console entries. Its viewport override did not change the reported CSS viewport, so local Chromium headless with all non-loopback resolution blocked was used for exact 1440×900, 390×844, and 320×640 responsive checks, a 47.04-second workflow recording, and the retained 39/39 `browser-qa.json` receipt. That receipt isolates one expected HTTP 400 resource event from the deliberate invalid-JSON probe and records zero unexpected console errors and zero page errors.
 
 ## Comparison points
 
@@ -50,12 +50,12 @@ Static functional copy includes `ZNAK ORIENT`, section names, `Choose JSON`, `Re
 
 The in-app browser's clipboard API returned an empty read after the page reported a successful copy. A separate isolated headless Chromium run with explicit local clipboard permission did read the payload and verify `source_of_truth = false` plus `write_back_allowed = false`. This proves only that tested local context, not clipboard support in other browsers. The same flags remain independently covered by automated tests.
 
-The implementation makes the assistant smaller than the concept to keep the full action and figure visible on a 390×844 screen. That is an intentional responsive scale change, not a change in ownership or meaning. The retained synthetic workflow exercises `BLOCKED`; the closed CSS mapping and automated source contract cover the named motion for the other voltage states, but the recording is not evidence of those four runtime outcomes.
+The implementation makes the assistant smaller than the concept to keep the full action and figure visible on a 390×844 screen. That is an intentional responsive scale change, not a change in ownership or meaning. The visible synthetic walkthrough centers on `BLOCKED`; separately, the retained machine-readable browser workflow executes and verifies `BLOCKED`, `FLOWING`, `WEAK`, `BROKEN`, and `UNKNOWN`, including the corresponding reduced-motion states. The video is not represented as a narrated visual tour of all five states.
 
 ## Retained image hashes
 
 | Artifact | Dimensions | SHA-256 |
 | --- | --- | --- |
 | `design-concept-1440x900.png` | 1440×900 | `2a44073a724801674a5365e96f5c59155ea6682f9607a044740b908361e0e71d` |
-| `ui-desktop-1440x900.png` | 1440×900 | `77fe7b818860aebf7b0fb9e9961937d92586709a2333eaa0c505d206a585aea3` |
-| `ui-mobile-390x844.png` | 390×844 | `262ae610e7844de7d050c9bb40477cbf5ec142a499cc8819122d9a6d92be8395` |
+| `ui-desktop-1440x900.png` | 1440×900 | `46ea419f55fba07e0b6cb753504934b01631db81896809217fd0eb9903f04de0` |
+| `ui-mobile-390x844.png` | 390×844 | `a15fc5dcffaa25dc1e8f0fb720707c968c382d8e902cc2747b499739c0bff269` |

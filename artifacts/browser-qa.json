@@ -23,15 +23,38 @@
     "scoped_run_pass": true,
     "no_horizontal_overflow": true,
     "clipboard_card_payload_non_authoritative": true,
-    "no_console_or_page_errors": true,
+    "no_unexpected_console_or_page_errors": true,
     "mobile_no_horizontal_overflow": true,
     "mobile_position_precedes_intake": true,
     "mobile_next_step_visible_in_opening_view": true,
     "mobile_guide_visible_in_opening_view": true,
     "semantic_position_precedes_intake": true,
     "assistant_reduced_motion_respected": true,
-    "minimum_width_no_horizontal_overflow": true
+    "assistant_blocked_runtime_state": true,
+    "assistant_flowing_runtime_state": true,
+    "assistant_weak_runtime_state": true,
+    "assistant_broken_runtime_state": true,
+    "assistant_unknown_runtime_state": true,
+    "assistant_all_five_reduced_motion_states": true,
+    "minimum_width_no_horizontal_overflow": true,
+    "long_dynamic_tokens_reflow": true,
+    "responsive_width_sweep_no_horizontal_overflow": true,
+    "high_contrast_focus_visible": true,
+    "high_contrast_table_keyboard_focus_visible": true,
+    "high_contrast_assistant_strokes_visible": true,
+    "high_contrast_no_horizontal_overflow": true,
+    "invalid_json_error_is_persistent_and_single": true,
+    "valid_import_recovers_after_invalid_json": true,
+    "oversized_import_rejected_locally": true,
+    "invalid_json_expected_http_error_isolated": true
   },
+  "expected_console_events": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+      "viewport": "import"
+    }
+  ],
   "console_errors": [],
   "page_errors": [],
   "claim_limit": "This receipt proves only the tested local headless workflow; it does not prove publication, external source truth, clipboard support in other browsers, or production readiness."

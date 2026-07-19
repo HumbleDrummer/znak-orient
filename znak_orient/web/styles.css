@@ -21,7 +21,7 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--paper); color: var(--ink); min-width: 320px; }
+body { min-width: 0; margin: 0; background: var(--paper); color: var(--ink); }
 button, input { font: inherit; }
 button { color: inherit; }
 code { font-family: "Cascadia Mono", Consolas, monospace; }
@@ -49,13 +49,14 @@ button:focus-visible, a:focus-visible, .table-wrap:focus-visible { outline: 0; b
 
 main { padding-top: 28px; }
 .orientation-grid { display: grid; grid-template-columns: minmax(270px, 0.82fr) minmax(430px, 1.36fr) minmax(300px, 0.92fr); grid-template-areas: "intake current recovery" "intake conflict conflict"; gap: 16px; align-items: stretch; }
-.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); }
+.panel { min-width: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); }
 .intake-panel { grid-area: intake; min-height: 680px; padding: 24px 22px; }
 .current-panel { grid-area: current; min-height: 430px; padding: 28px 30px 30px; }
 .recovery-panel { grid-area: recovery; padding: 24px; background: var(--ink); color: white; border-color: var(--ink); }
 .conflict-panel { grid-area: conflict; padding: 22px 28px 26px; }
 
 .section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding-bottom: 17px; border-bottom: 1px solid var(--rule); }
+.section-heading > *, .orientation-facts > *, .conflict-columns > *, .card-summary > * { min-width: 0; }
 .section-heading h1, .section-heading h2 { margin: 2px 0 0; letter-spacing: -0.035em; line-height: 1; }
 .section-heading h1 { font-size: clamp(29px, 2.8vw, 42px); }
 .section-heading h2 { font-size: 23px; }
@@ -67,7 +68,7 @@ main { padding-top: 28px; }
 .voltage[data-voltage="FLOWING"] { color: var(--green); border-color: var(--green); background: var(--green-soft); }
 .voltage[data-voltage="UNKNOWN"], .voltage[data-voltage="WEAK"] { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
 
-.position-statement { max-width: 700px; margin: 28px 0 24px; font-size: clamp(22px, 2.2vw, 33px); line-height: 1.16; letter-spacing: -0.036em; font-weight: 630; }
+.position-statement { max-width: 700px; margin: 28px 0 24px; overflow-wrap: anywhere; font-size: clamp(22px, 2.2vw, 33px); line-height: 1.16; letter-spacing: -0.036em; font-weight: 630; }
 .orientation-facts { display: grid; grid-template-columns: 1.5fr 1fr 1.25fr; margin: 22px 0 0; border-top: 1px solid var(--soft-rule); border-bottom: 1px solid var(--soft-rule); }
 .orientation-facts div { padding: 13px 16px 14px 0; }
 .orientation-facts div + div { padding-left: 16px; border-left: 1px solid var(--soft-rule); }
@@ -109,8 +110,8 @@ dd { margin: 6px 0 0; font-size: 13px; line-height: 1.45; }
 .guide-status-line .small-label { margin: 0; color: var(--guide-accent); transition: color 180ms ease; }
 .guide-state-title { margin: 0; font-size: 13px; font-weight: 760; letter-spacing: -0.01em; }
 .action-label { margin-bottom: 7px; }
-.guided-copy h2 { margin: 0; font-size: 19px; line-height: 1.28; letter-spacing: -0.025em; }
-.guided-copy > p:not(.small-label):not(.source-line):not(.guide-state-title) { margin: 8px 0; color: #48564f; font-size: 13px; line-height: 1.5; }
+.guided-copy h2 { margin: 0; overflow-wrap: anywhere; font-size: 19px; line-height: 1.28; letter-spacing: -0.025em; }
+.guided-copy > p:not(.small-label):not(.source-line):not(.guide-state-title) { margin: 8px 0; overflow-wrap: anywhere; color: #48564f; font-size: 13px; line-height: 1.5; }
 @keyframes guide-anchor { 0% { transform: translateY(-5px); } 48%, 100% { transform: translateY(0); } }
 @keyframes guide-step { 0% { transform: translateX(-4px); } 55% { transform: translateX(4px); } 100% { transform: translateX(0); } }
 @keyframes guide-lean { 0%, 100% { transform: rotate(0deg); } 52% { transform: rotate(2.5deg); } }
@@ -121,6 +122,7 @@ dd { margin: 6px 0 0; font-size: 13px; line-height: 1.45; }
 .small-label { margin: 0 0 7px; color: var(--blue); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; }
 .source-line { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .success-condition { display: block; margin-top: 10px; color: var(--blue); font-size: 10px; overflow-wrap: anywhere; }
+dd, .source-line, .intake-item strong, .intake-item p, .ruled-item strong, .ruled-item p, .receipt-card h3, .package-error, td { min-width: 0; overflow-wrap: anywhere; }
 
 .filter-row { display: flex; flex-wrap: wrap; gap: 5px; padding: 16px 0 13px; }
 .filter { min-height: 31px; padding: 0 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; }
@@ -201,6 +203,7 @@ footer p { margin: 0; }
   .topbar { grid-template-columns: 1fr; gap: 13px; padding: 18px 0; }
   .package-error { grid-column: auto; margin: 0; }
   .run-meta { display: grid; gap: 5px; }
+  .run-meta span { white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
   .top-actions { grid-column: auto; display: grid; grid-template-columns: 1fr; padding: 0; }
   .orientation-grid { grid-template-columns: 1fr; grid-template-areas: "current" "intake" "conflict" "recovery"; }
   .current-panel, .intake-panel, .conflict-panel, .recovery-panel, .evidence-section, .receipt-section { padding: 21px 18px; }
@@ -225,4 +228,22 @@ footer p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
   .guide-character, .guide-arm, .guide-marker { animation: none !important; }
+}
+
+@media (forced-colors: active) {
+  button:focus-visible, a:focus-visible, .table-wrap:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 3px;
+    box-shadow: none;
+  }
+  .filter.active {
+    color: HighlightText;
+    background: Highlight;
+    border-color: Highlight;
+  }
+  .voltage, .orientation-guide, .derived-warning { border-color: CanvasText; }
+  .toast { border: 1px solid CanvasText; }
+  .guide-body, .guide-head { fill: Canvas; stroke: CanvasText; }
+  .guide-leg, .guide-hair, .guide-face, .guide-arm { stroke: CanvasText; }
+  .guide-emblem, .guide-direction, .guide-marker { stroke: Highlight; }
 }
