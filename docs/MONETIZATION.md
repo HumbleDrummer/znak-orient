@@ -27,12 +27,14 @@ The core tool is MIT-licensed, so selling the code itself is a bad plan — anyo
 
 **Product: "znak-orient Evidence Pack for AI Coding Agents" — suggested price $19–$39, one-time.**
 
-Contents to build (not yet built — this is the spec):
-- Ready-made evidence-package JSON templates pre-wired for Claude Code, Codex, and Cursor session logs (the `demo/evidence-package.json` schema already in this repo is the base to extend).
-- A short PDF/Markdown playbook: "how to keep an AI agent honest across sessions" — 5–8 pages, written from the design decisions already documented in `docs/ARCHITECTURE.md` and `docs/DESIGN_SYSTEM.md`.
-- A CLI wrapper script that converts a raw Claude Code / Codex transcript export into a valid evidence package automatically.
+Built and committed in this repo:
+- `templates/evidence-packs/ai-agent-session-template.json` — a working, engine-verified evidence package modeling a real multi-session AI-agent scenario (Claude Code → Codex → Cursor), covering a stale entrypoint conflict, a failed clean-checkout receipt, an unauthorized "just mark it done" chat claim, and an inert prompt-injection attempt. Verified to produce `ORIENTATION_PASS` via the actual CLI.
+- `tools/build_ai_agent_evidence_pack.py` — the generator that produced it, using the real `znak_orient.canonical`/`znak_orient.contracts` functions so every integrity hash and receipt pointer is correct by construction. This is also the customization path: copy it, edit the source/receipt/lamp content, rerun.
+- `docs/AI_AGENT_EVIDENCE_PLAYBOOK.md` — the explainer: what problem this catches, how the scenario plays out, and a 5-step adaptation guide for a buyer's own project.
 
-Listing platform: Gumroad or Lemon Squeezy (both let an individual sign up and list a digital product same-day; Lemon Squeezy acts as merchant of record, which is simpler for tax/VAT if you're outside the US).
+Not yet built: a packaged PDF version of the playbook and per-tool starter variants (a Cursor-only template, a multi-repo template). Build those once the base pack has sold a few copies — no point polishing a variant before the first one is validated.
+
+Listing platform: Gumroad or Lemon Squeezy (both let an individual sign up and list a digital product same-day; Lemon Squeezy acts as merchant of record, which is simpler for tax/VAT if you're outside the US). Listing needs your own account — I can't create it, but the product description below is ready to paste in once you have.
 
 Copy-paste product description draft:
 
@@ -55,5 +57,5 @@ Pitch this specifically into two current-demand niches where it's a strong signa
 ## What to do this week, in order
 
 1. Fill in `.github/FUNDING.yml` and push (5 minutes, needs your GitHub Sponsors/Ko-fi username).
-2. Tell me whether to build the Track B evidence-pack templates and playbook — I can do that in this repo now.
+2. Sign up for Gumroad or Lemon Squeezy, create a listing using the Track B product description above, and attach `templates/evidence-packs/ai-agent-session-template.json` + `docs/AI_AGENT_EVIDENCE_PLAYBOOK.md` as the deliverable (zip them together). This is built and ready to sell now.
 3. Copy the Track C blurb into an Upwork/Fiverr profile and apply to 5–10 relevant listings; that's the fastest actual dollars, and it's on you because it requires an account under your identity.
