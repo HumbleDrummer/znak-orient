@@ -69,9 +69,20 @@ Copy-paste product description draft:
 
 Suggested price: $15–$29 one-time — lower than Track B's technical audience price point, because the buyer pool (freelancers/solo founders doing their own sales) is more price-sensitive and this is a lighter-weight download.
 
+## Track E — SiteDoctor: a service business, not a download (weeks, highest ceiling, most moving parts)
+
+Built and committed at `products/sitedoctor/`: a working, tested (19/19 passing) technical-audit engine — SSL/security-headers/response-time/DNS checks, 0-100 scoring, Markdown report generation with an explicitly-labeled "cost of neglect" estimate and competitor comparison, and a CLI. This is real, runnable code, not a spec.
+
+This came from a much more aggressive prompt (scrape 500 store domains, cold-email them on a fixed schedule "until commission appears," projected $392 MRR + $4,000 setup fees in 24 days). `products/sitedoctor/README.md` documents exactly what changed and why: the scrape-and-cold-email acquisition model was replaced with a **pull model** (a visitor requests their own free audit) because unsolicited commercial email carries real legal exposure under GDPR/Polish e-commerce law that an unsubscribe link doesn't resolve, and because a self-requested audit converts better anyway. The revenue mechanism itself — white-label partners (agencies) sell monitoring/fixes to their own clients, you take 40% recurring + a $200 setup fee per client, referrers get 20% — is unchanged and is in `products/sitedoctor/templates/partner-agreement.md` as a starting draft (have a lawyer review it before anyone signs).
+
+This is the slowest track to first dollar of the four, because unlike Track B/D it isn't a finished download — it needs a landing page, hosting (Vercel/Supabase or equivalent), and real conversations with agency partners before it produces revenue. It also has the highest ceiling: recurring revenue with a partner doing the selling scales past what a one-time digital-product sale can.
+
+What's not built, in order of what to do next: (1) the self-serve landing page where someone submits their domain for a free audit — I can build the markup/API contract on request; (2) picking and setting up hosting for it, which needs your account; (3) actual outreach to 5-10 real agencies using `products/sitedoctor/templates/partner-agreement.md` as the starting point for a real conversation, not an automated blast.
+
 ## What to do this week, in order
 
 1. Fill in `.github/FUNDING.yml` and push (5 minutes, needs your GitHub Sponsors/Ko-fi username).
 2. Sign up for Gumroad or Lemon Squeezy, create a listing using the Track B product description above, and attach `templates/evidence-packs/ai-agent-session-template.json` + `docs/AI_AGENT_EVIDENCE_PLAYBOOK.md` as the deliverable (zip them together). This is built and ready to sell now.
 3. On the same account, list Track D using its product description above, attaching everything in `products/sales-agent-pack/` zipped up. Also built and ready to sell now.
 4. Copy the Track C blurb into an Upwork/Fiverr profile and apply to 5–10 relevant listings; that's the fastest actual dollars, and it's on you because it requires an account under your identity.
+5. If you want to pursue Track E, tell me and I'll build the landing page next — but the actual agency conversations and hosting choice are yours to make; I can't automate a real business relationship into existing.
