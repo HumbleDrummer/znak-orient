@@ -2,7 +2,7 @@
 
 This is an operator playbook, not a claim that any of this has been executed. Every account signup, payment connection, and identity verification below has to be done by a human who owns the project — none of it can be done on your behalf. What follows is ready-to-paste copy and an exact sequence so that part takes minutes, not days.
 
-Context: the OpenAI Build Week deadline (2026-07-21) has passed, so `BUILD_WEEK_SUBMISSION_CHECKLIST.md` is no longer a revenue path. This playbook replaces it with three tracks that can run in parallel. They are ordered by time-to-first-dollar, not by ceiling.
+Context: the OpenAI Build Week deadline (2026-07-21) has passed, so `BUILD_WEEK_SUBMISSION_CHECKLIST.md` is no longer a revenue path. This playbook replaces it with four tracks that can run in parallel. They are ordered by time-to-first-dollar, not by ceiling.
 
 ## Positioning (use this everywhere)
 
@@ -54,8 +54,24 @@ Use this project as proof-of-skill on Upwork/Fiverr/Toptal rather than trying to
 
 Pitch this specifically into two current-demand niches where it's a strong signal: (1) "AI agent tooling / context engineering" gigs, (2) general Python backend / deterministic-systems roles. Apply with this project attached rather than a generic profile — it's a stronger signal than most portfolio pieces because it has tests, CI, and documented design tradeoffs.
 
+## Track D — Sell a second, independent product: the Sales & Closing Agent Pack (days, requires listing it)
+
+Built and committed at `products/sales-agent-pack/`: five specialized Claude Code subagents (lead qualifier, sales copywriter, objection handler/closer, follow-up strategist, pricing negotiator) that plug into any Claude Code project via `.claude/agents/`. Each one encodes a specific, well-established sales discipline (BANT qualification, consultative needs discovery, feature-to-benefit copywriting, acknowledge-then-resolve objection handling, value-anchored pricing) — the value being sold is the judgment built into each agent's instructions, not a generic "write me a sales email" prompt.
+
+This is a separate audience from Track B (freelancers/small teams doing their own sales with Claude Code, not necessarily znak-orient users), so it doubles your addressable buyers rather than competing with Track B for the same ones. `products/sales-agent-pack/example-output/evidence-pack-cold-outreach.md` is a worked example — the pack's own copywriter agent used to draft outreach for the Track B product — worth linking to from the listing as proof the pack produces usable output, not just advice.
+
+Copy-paste product description draft:
+
+> **Five sales specialists for your Claude Code sessions — not one generalist bot.**
+> Qualify a lead, write the pitch, handle the objection, follow up without being annoying, negotiate price — each stage has its own agent, built on well-established sales methodology (BANT, consultative selling, value-based pricing). Drop the files into `.claude/agents/` and Claude Code routes to the right one automatically.
+> Every agent drafts only — you stay in control of what actually gets sent. That's not a limitation, it's what makes the output trustworthy enough to use.
+> $[15–29] one-time. Full source and worked example included.
+
+Suggested price: $15–$29 one-time — lower than Track B's technical audience price point, because the buyer pool (freelancers/solo founders doing their own sales) is more price-sensitive and this is a lighter-weight download.
+
 ## What to do this week, in order
 
 1. Fill in `.github/FUNDING.yml` and push (5 minutes, needs your GitHub Sponsors/Ko-fi username).
 2. Sign up for Gumroad or Lemon Squeezy, create a listing using the Track B product description above, and attach `templates/evidence-packs/ai-agent-session-template.json` + `docs/AI_AGENT_EVIDENCE_PLAYBOOK.md` as the deliverable (zip them together). This is built and ready to sell now.
-3. Copy the Track C blurb into an Upwork/Fiverr profile and apply to 5–10 relevant listings; that's the fastest actual dollars, and it's on you because it requires an account under your identity.
+3. On the same account, list Track D using its product description above, attaching everything in `products/sales-agent-pack/` zipped up. Also built and ready to sell now.
+4. Copy the Track C blurb into an Upwork/Fiverr profile and apply to 5–10 relevant listings; that's the fastest actual dollars, and it's on you because it requires an account under your identity.
