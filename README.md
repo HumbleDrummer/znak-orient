@@ -2,8 +2,6 @@
 
 [![CI](https://github.com/HumbleDrummer/znak-orient/actions/workflows/ci.yml/badge.svg)](https://github.com/HumbleDrummer/znak-orient/actions/workflows/ci.yml)
 
-> If this tool is useful to you, consider sponsoring the project via the **Sponsor** button on this repo's GitHub page — see `docs/MONETIZATION.md` for the full monetization plan.
-
 ZNAK ORIENT is a local, deterministic developer tool for recovering project direction from partial, stale, duplicated, contradictory, and untrusted evidence. It returns a source-backed current position, explicit conflicts and unknowns, exactly one corrective next step, a machine-verifiable success condition, a canonical checkpoint, and a compact non-authoritative Recovery Card.
 
 Current scope: `IMPLEMENTED_TESTED_PUBLIC_JUDGING_REPOSITORY` competition MVP. This is the public GitHub judging repository; it is not a claim of production readiness, canonical X30 ratification, external source authenticity, public hosted deployment, Devpost submission, or published video.
