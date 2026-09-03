@@ -1,0 +1,678 @@
+{
+  "schema_version": "1.0",
+  "archive_id": "ZNAK-20260903-ARC-AGI-3-RESULTS-v1.0",
+  "evidence_date": "2026-09-03",
+  "status": "PUBLIC_EVIDENCE_METADATA",
+  "benchmark": "ARC-AGI-3 Public Demo",
+  "protocol": "25 independent one-environment public scorecards; not one aggregate competition-mode scorecard",
+  "summary": {
+    "games_completed": 25,
+    "games_total": 25,
+    "levels_completed": 183,
+    "levels_total": 183,
+    "score_per_scorecard": 100,
+    "actions": 6992,
+    "counted_retry_resets": 0,
+    "validation_errors": 0
+  },
+  "local_archive": {
+    "filename": "ZNAK_ARC_AGI_3_RESULTS_2026-09-03.zip",
+    "sha256": "6aeaf82ecd42ee1e3877af3473ad608409ba42fea509ad9a1a9564cef1e32b7d",
+    "bytes": 6051072,
+    "verified_entries": 54,
+    "distribution": "retained locally; third-party ARC Prize payloads are not mirrored in this repository"
+  },
+  "evidence_boundary": "Public-set platform-reported results; not ARC Prize Verified, private evaluation, leaderboard rank, or endorsement.",
+  "rights_notice": "RIGHTS_NOTICE.md",
+  "results": [
+    {
+      "task": "AR25",
+      "game_id": "ar25-0c556536",
+      "card_id": "a9b335a9-d26b-45a9-8f6f-1b2fd47d7fe8",
+      "score": 100,
+      "levels_completed": 8,
+      "levels_total": 8,
+      "actions": 271,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 08:38:08",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "AR25"
+      ],
+      "scorecard_sha256": "1a4878eda5aed25c190ab1f081a884785c5c4d41772db54c1bca980f6fca5999",
+      "recording_sha256": "a0c499739ada1aaee4b00fe9a630232ec066f06018c7540bdca4b76bacd17e5b",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/a9b335a9-d26b-45a9-8f6f-1b2fd47d7fe8",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/a9b335a9-d26b-45a9-8f6f-1b2fd47d7fe8",
+        "recording": "https://arcprize.org/api/recordings/ar25-0c556536/8431157c-b928-47be-9869-b478b1c3006b"
+      }
+    },
+    {
+      "task": "BP35",
+      "game_id": "bp35-0a0ad940",
+      "card_id": "ba0108b3-23eb-40f5-a27b-25db49be99ec",
+      "score": 100,
+      "levels_completed": 9,
+      "levels_total": 9,
+      "actions": 406,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:00:07",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "BP35"
+      ],
+      "scorecard_sha256": "792b822f3cc96d0b7dfbd02562b6008b9eeebdf42b1d44f72d6bcab4cbaf8606",
+      "recording_sha256": "97fd012f6f7e0ec9ca85aff8c19c355abf6e7bc46464477fd9e8a9bf01a97b5f",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/ba0108b3-23eb-40f5-a27b-25db49be99ec",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/ba0108b3-23eb-40f5-a27b-25db49be99ec",
+        "recording": "https://arcprize.org/api/recordings/bp35-0a0ad940/68798bfd-d836-463c-b927-ab43cd4c2d8b"
+      }
+    },
+    {
+      "task": "CD82",
+      "game_id": "cd82-fb555c5d",
+      "card_id": "a78e8c3f-e699-46dd-885b-ddf6c2985252",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 87,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:06:08",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "CD82"
+      ],
+      "scorecard_sha256": "5a06cb1b43847ee72a004d10a76441f3e7c8c215183f54126b5aa41ad11bdb08",
+      "recording_sha256": "b7f0fca840e5ab64c53bd6e366d5a010120e0349edfc57a5a858b3dff89c6d11",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/a78e8c3f-e699-46dd-885b-ddf6c2985252",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/a78e8c3f-e699-46dd-885b-ddf6c2985252",
+        "recording": "https://arcprize.org/api/recordings/cd82-fb555c5d/5f1e8645-c15d-4935-86e3-a04a5712b24d"
+      }
+    },
+    {
+      "task": "CN04",
+      "game_id": "cn04-2fe56bfb",
+      "card_id": "2de48cfc-6ab8-4652-81d5-797fb0a95870",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 289,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:13:35",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "CN04"
+      ],
+      "scorecard_sha256": "8d6334fa5e559ddc1a77d65bdc7e7a172b66505530b16baa6e72d0837e70356e",
+      "recording_sha256": "77783bd44b9fd0e75f37cec9b7a32d5577c70d3310e12bbf966e7103d1c73283",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/2de48cfc-6ab8-4652-81d5-797fb0a95870",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/2de48cfc-6ab8-4652-81d5-797fb0a95870",
+        "recording": "https://arcprize.org/api/recordings/cn04-2fe56bfb/343f0a68-a069-49c4-8680-50e68462cf16"
+      }
+    },
+    {
+      "task": "DC22",
+      "game_id": "dc22-fdcac232",
+      "card_id": "b1a3c14c-95a9-4f5e-94dc-0031fa2a2d42",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 434,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 08:11:16",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run"
+      ],
+      "scorecard_sha256": "79fc350c9af084f986c4965442c8befc05736c8f64116d027de43762c56e7e7c",
+      "recording_sha256": "0ae0af42707bcfa2f7f6717619d63661fac33def7b8c639571ab10d5467b0ecb",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/b1a3c14c-95a9-4f5e-94dc-0031fa2a2d42",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/b1a3c14c-95a9-4f5e-94dc-0031fa2a2d42",
+        "recording": "https://arcprize.org/api/recordings/dc22-fdcac232/08d7d5d9-2f11-4c41-afb9-1fc6648716ca"
+      }
+    },
+    {
+      "task": "FT09",
+      "game_id": "ft09-0d8bbf25",
+      "card_id": "e5379664-d390-4b67-b777-41b3efa30f4c",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 75,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:19:14",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "FT09"
+      ],
+      "scorecard_sha256": "edc3b8f22b31b7b558648615597486b333c2ec19a2f36e1d9e73aa1e6448400a",
+      "recording_sha256": "ef4ec1a7e2ae5abb31794bf132ccbd2c1f229864bb45c873dfa7644614bb6229",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/e5379664-d390-4b67-b777-41b3efa30f4c",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/e5379664-d390-4b67-b777-41b3efa30f4c",
+        "recording": "https://arcprize.org/api/recordings/ft09-0d8bbf25/6b7ce938-4bf0-42e2-9443-717d113ef339"
+      }
+    },
+    {
+      "task": "G50T",
+      "game_id": "g50t-5849a774",
+      "card_id": "9dc23d2b-aa37-4c5c-8886-f3a71072ae2a",
+      "score": 100,
+      "levels_completed": 7,
+      "levels_total": 7,
+      "actions": 340,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:29:48",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "G50T"
+      ],
+      "scorecard_sha256": "9583805824abb91cc287fcd085944989df2d53bbbd7b3b97154964bc4c9f2fc7",
+      "recording_sha256": "3c9ef29791f8493fa631c67749742de675e7be931839bad3650dc63c0053dcf8",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/9dc23d2b-aa37-4c5c-8886-f3a71072ae2a",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/9dc23d2b-aa37-4c5c-8886-f3a71072ae2a",
+        "recording": "https://arcprize.org/api/recordings/g50t-5849a774/ab86821c-c29c-4568-a982-dc1401a36ecc"
+      }
+    },
+    {
+      "task": "KA59",
+      "game_id": "ka59-38d34dbb",
+      "card_id": "5ba06315-2499-40d5-b25a-0cd9b7ef8e40",
+      "score": 100,
+      "levels_completed": 7,
+      "levels_total": 7,
+      "actions": 312,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:40:58",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "KA59"
+      ],
+      "scorecard_sha256": "41ead1d2306093549d9d518bd51cdd6550d803921c1208835cc4089f102eb047",
+      "recording_sha256": "4f786a213e3b4458ea4bbfec392d1fcf7fba196c9a5f760b9508f59c525ea99d",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/5ba06315-2499-40d5-b25a-0cd9b7ef8e40",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/5ba06315-2499-40d5-b25a-0cd9b7ef8e40",
+        "recording": "https://arcprize.org/api/recordings/ka59-38d34dbb/01ce35ba-1fab-406d-b62d-291ea5ce1047"
+      }
+    },
+    {
+      "task": "LF52",
+      "game_id": "lf52-271a04aa",
+      "card_id": "8979c24d-dbef-45a5-a430-a0ad3065d0eb",
+      "score": 100,
+      "levels_completed": 10,
+      "levels_total": 10,
+      "actions": 919,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 09:56:43",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "LF52"
+      ],
+      "scorecard_sha256": "e891a58a3aa00df1830d745f77c6e57c41045176d337fbbd5f6ac651af602b95",
+      "recording_sha256": "9e3af768f6533bf7c02f565593a410295438b970db0cc11a8fe000409d64dc1b",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/8979c24d-dbef-45a5-a430-a0ad3065d0eb",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/8979c24d-dbef-45a5-a430-a0ad3065d0eb",
+        "recording": "https://arcprize.org/api/recordings/lf52-271a04aa/8c09cc25-2ebd-4f79-a643-c17cfdbe6f1c"
+      }
+    },
+    {
+      "task": "LP85",
+      "game_id": "lp85-305b61c3",
+      "card_id": "4143b2e1-8167-4e0b-9ea1-b8df0b945ff0",
+      "score": 100,
+      "levels_completed": 8,
+      "levels_total": 8,
+      "actions": 120,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 10:00:58",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "LP85"
+      ],
+      "scorecard_sha256": "9212ece2f5b42282365d69fe374af5cc2ecd0f96d2b9e69eb44e3fe0c1fbc6a2",
+      "recording_sha256": "1db5e07c398dd19ffa4f7b9b2a1c1aa731260aa37f348dc470de2cbd5bb24cfe",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/4143b2e1-8167-4e0b-9ea1-b8df0b945ff0",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/4143b2e1-8167-4e0b-9ea1-b8df0b945ff0",
+        "recording": "https://arcprize.org/api/recordings/lp85-305b61c3/fbc422cc-e388-4082-9fd2-235d8ec62066"
+      }
+    },
+    {
+      "task": "LS20",
+      "game_id": "ls20-9607627b",
+      "card_id": "7293548f-1ef4-4721-b03a-bb2b2a81ab05",
+      "score": 100,
+      "levels_completed": 7,
+      "levels_total": 7,
+      "actions": 453,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 10:10:01",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "LS20"
+      ],
+      "scorecard_sha256": "692fd9e41cae31ed59d9c7d0631e6dd39516948325bae3d64cc669b676989796",
+      "recording_sha256": "b5401dd2cef9fae5e4f80ec76532c07ddfa7edf5dcb1b0857df7de80a76bfed3",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/7293548f-1ef4-4721-b03a-bb2b2a81ab05",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/7293548f-1ef4-4721-b03a-bb2b2a81ab05",
+        "recording": "https://arcprize.org/api/recordings/ls20-9607627b/36edc0f2-6c93-43e9-8ed4-ff8b85404f6c"
+      }
+    },
+    {
+      "task": "M0R0",
+      "game_id": "m0r0-492f87ba",
+      "card_id": "dad52f37-1b3f-4a72-b976-ebc319cd40a8",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 187,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 10:24:34",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "M0R0"
+      ],
+      "scorecard_sha256": "eb54748d8cae613a56613696775753abb493346281861b4e938030c55c0cfb9c",
+      "recording_sha256": "8be8d3b1bf8a0b016af050ff3662759f5c59651e646e38f96b4d03f2bb9fdce7",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/dad52f37-1b3f-4a72-b976-ebc319cd40a8",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/dad52f37-1b3f-4a72-b976-ebc319cd40a8",
+        "recording": "https://arcprize.org/api/recordings/m0r0-492f87ba/280d5567-c4d7-402b-81f9-db4f034efd4f"
+      }
+    },
+    {
+      "task": "R11L",
+      "game_id": "r11l-495a7899",
+      "card_id": "8f2e4439-e235-47e5-98a7-d11ccfe51550",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 156,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 10:32:41",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "R11L"
+      ],
+      "scorecard_sha256": "862853271ddaac2f0a85ff72a1d2dd5d393ee650a513dc22bc808e02086c480b",
+      "recording_sha256": "99726d7ec022900c40c4bcf75054ee6a5c9e4052e423b1520380da62cf65d6fc",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/8f2e4439-e235-47e5-98a7-d11ccfe51550",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/8f2e4439-e235-47e5-98a7-d11ccfe51550",
+        "recording": "https://arcprize.org/api/recordings/r11l-495a7899/59f9a6e0-0efe-432a-baa6-17350a395f10"
+      }
+    },
+    {
+      "task": "RE86",
+      "game_id": "re86-8af5384d",
+      "card_id": "8fae5498-e7f1-4b98-93e1-f02024b357d1",
+      "score": 100,
+      "levels_completed": 8,
+      "levels_total": 8,
+      "actions": 593,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 10:42:06",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "RE86"
+      ],
+      "scorecard_sha256": "f252e7a90d00686d9ab35a8082108ad37852fec80628493371f321f27baa8ad1",
+      "recording_sha256": "5976957bdcc4bb460cd097ec6e9734a87627e76b6e2702af42e3416f7194f91d",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/8fae5498-e7f1-4b98-93e1-f02024b357d1",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/8fae5498-e7f1-4b98-93e1-f02024b357d1",
+        "recording": "https://arcprize.org/api/recordings/re86-8af5384d/7a698892-91eb-425e-8270-ac5911871c7c"
+      }
+    },
+    {
+      "task": "S5I5",
+      "game_id": "s5i5-18d95033",
+      "card_id": "ffc897a6-162f-48b3-8180-8ce02a851477",
+      "score": 100,
+      "levels_completed": 8,
+      "levels_total": 8,
+      "actions": 316,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 10:48:20",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "S5I5"
+      ],
+      "scorecard_sha256": "c47889e41a5250dc65645727fdee64342d54e9cfc9c2dc55c598359135b04795",
+      "recording_sha256": "0b04f74c8ca5b0bfd0db5f8ea1337dff0daaa99e2ac519b11cf2354a8a0f34d8",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/ffc897a6-162f-48b3-8180-8ce02a851477",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/ffc897a6-162f-48b3-8180-8ce02a851477",
+        "recording": "https://arcprize.org/api/recordings/s5i5-18d95033/91498fcf-69f0-4aa4-981f-4fb09ed4340b"
+      }
+    },
+    {
+      "task": "SB26",
+      "game_id": "sb26-7fbdac44",
+      "card_id": "dad22434-476b-4202-a423-3981b0684a35",
+      "score": 100,
+      "levels_completed": 8,
+      "levels_total": 8,
+      "actions": 124,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 11:01:01",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "SB26"
+      ],
+      "scorecard_sha256": "e49db2a9ee1ac9008b736957eb6a2b2e032a4bf364e393d0ed7a9a97bb2f8bfe",
+      "recording_sha256": "72b7eee302de0be4a4a0cef8688ee2ea1cd31fadbda2989cfbe1ae7a7e1f8206",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/dad22434-476b-4202-a423-3981b0684a35",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/dad22434-476b-4202-a423-3981b0684a35",
+        "recording": "https://arcprize.org/api/recordings/sb26-7fbdac44/ef594b7e-44ec-4bde-9461-3da583c64e14"
+      }
+    },
+    {
+      "task": "SC25",
+      "game_id": "sc25-635fd71a",
+      "card_id": "839bb97b-0f46-46d0-bd53-311db8bee25e",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 138,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 11:10:36",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "SC25"
+      ],
+      "scorecard_sha256": "ac32507655b384bb3c74c4c0a12c49ccd301983ca3616f256cce6f5f7c06ee65",
+      "recording_sha256": "194e9d4b036cb470e85ed0315563b79a5b2cf1b2e728c0ac1f55a44451bee468",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/839bb97b-0f46-46d0-bd53-311db8bee25e",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/839bb97b-0f46-46d0-bd53-311db8bee25e",
+        "recording": "https://arcprize.org/api/recordings/sc25-635fd71a/f1099612-d4ef-41c2-a6a1-68449b7758f3"
+      }
+    },
+    {
+      "task": "SK48",
+      "game_id": "sk48-d8078629",
+      "card_id": "b806eebf-4465-47f8-bfaa-dc344ef1a8eb",
+      "score": 100,
+      "levels_completed": 8,
+      "levels_total": 8,
+      "actions": 455,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 11:35:56",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "SK48"
+      ],
+      "scorecard_sha256": "3cc1efded6fa2d2b711056995bca6ebf7b33b699001c317f700b91e4e515ef51",
+      "recording_sha256": "dab43fffcfd4b7abb2f9e7ad92bc7390e20074f11d4da48b76e19df57bf5dd9d",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/b806eebf-4465-47f8-bfaa-dc344ef1a8eb",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/b806eebf-4465-47f8-bfaa-dc344ef1a8eb",
+        "recording": "https://arcprize.org/api/recordings/sk48-d8078629/502a6014-3aba-4e79-8d25-33a51ca14c49"
+      }
+    },
+    {
+      "task": "SP80",
+      "game_id": "sp80-589a99af",
+      "card_id": "c4167220-2cf3-4731-aad3-459a28d6088d",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 115,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 11:46:13",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "SP80"
+      ],
+      "scorecard_sha256": "2e83cc6eab86b4eaabd3a1d611581d7ed870e3ab67b7ebfc2dabd67d39817316",
+      "recording_sha256": "00188419e7e5360cb6106156860b9c1d25b68cbd285136be2a721f7c8edc8212",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/c4167220-2cf3-4731-aad3-459a28d6088d",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/c4167220-2cf3-4731-aad3-459a28d6088d",
+        "recording": "https://arcprize.org/api/recordings/sp80-589a99af/51f7b2ad-14d0-4084-b4a5-c6e2c907adef"
+      }
+    },
+    {
+      "task": "SU15",
+      "game_id": "su15-1944f8ab",
+      "card_id": "a28187e7-0a3c-443b-96ba-d5746995c704",
+      "score": 100,
+      "levels_completed": 9,
+      "levels_total": 9,
+      "actions": 106,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 11:55:24",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "SU15"
+      ],
+      "scorecard_sha256": "a94120c3b39a0361338e476d714452a1a62482592d3ddd785e78792d2c1dc73e",
+      "recording_sha256": "7a3e88e7fe8660d2b91cd035c290578ca68977cac7fd30e941e339c28ed13df9",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/a28187e7-0a3c-443b-96ba-d5746995c704",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/a28187e7-0a3c-443b-96ba-d5746995c704",
+        "recording": "https://arcprize.org/api/recordings/su15-1944f8ab/ab1dd13a-fc8c-450d-b303-5b7c96a31fd7"
+      }
+    },
+    {
+      "task": "TN36",
+      "game_id": "tn36-ef4dde99",
+      "card_id": "08f7e21d-e84f-47c9-8991-7b8495a01033",
+      "score": 100,
+      "levels_completed": 7,
+      "levels_total": 7,
+      "actions": 92,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 12:16:57",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "TN36"
+      ],
+      "scorecard_sha256": "6f2619588118f39368b17eb4c9e99a01db7a8e63e15225f49dfafee25872771f",
+      "recording_sha256": "b2862f434f651a62186cc8201bd3f1f6c8e3c71953bef5bd307fb161e3489c13",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/08f7e21d-e84f-47c9-8991-7b8495a01033",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/08f7e21d-e84f-47c9-8991-7b8495a01033",
+        "recording": "https://arcprize.org/api/recordings/tn36-ef4dde99/0c1c9a0c-df5f-4445-bcda-b309a9c1229a"
+      }
+    },
+    {
+      "task": "TR87",
+      "game_id": "tr87-cd924810",
+      "card_id": "531c2c66-0213-4a16-bdfe-7bc35446ed15",
+      "score": 100,
+      "levels_completed": 6,
+      "levels_total": 6,
+      "actions": 118,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 12:28:37",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "TR87"
+      ],
+      "scorecard_sha256": "1e47f07b2682a41917abd9714da48e8021656d5547baa23f9c23f2e9d06d03d5",
+      "recording_sha256": "1ab1b8c2957b18fdfb010161cdeafae843bce2ffc129bb88863da582f4f75ed5",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/531c2c66-0213-4a16-bdfe-7bc35446ed15",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/531c2c66-0213-4a16-bdfe-7bc35446ed15",
+        "recording": "https://arcprize.org/api/recordings/tr87-cd924810/bede3a1a-bd21-494a-bea7-d55b29b25815"
+      }
+    },
+    {
+      "task": "TU93",
+      "game_id": "tu93-0768757b",
+      "card_id": "f01f4a11-1dbd-402f-9925-bfe0ecdf932d",
+      "score": 100,
+      "levels_completed": 9,
+      "levels_total": 9,
+      "actions": 185,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 12:42:01",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "TU93"
+      ],
+      "scorecard_sha256": "156659523d671ffd0c8af2e8bb6430b3801bd2fd3bf28e38200a0098802db650",
+      "recording_sha256": "0e93472acfa3aa6d8eab139d15997d0165cd4a7fe4adce307d61ef5855fabfc1",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/f01f4a11-1dbd-402f-9925-bfe0ecdf932d",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/f01f4a11-1dbd-402f-9925-bfe0ecdf932d",
+        "recording": "https://arcprize.org/api/recordings/tu93-0768757b/c26e7b64-2802-4080-b980-074af2ef0dae"
+      }
+    },
+    {
+      "task": "VC33",
+      "game_id": "vc33-5430563c",
+      "card_id": "f4ac9f59-3896-45a1-b32c-6ad32698a22a",
+      "score": 100,
+      "levels_completed": 7,
+      "levels_total": 7,
+      "actions": 167,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 12:54:00",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "VC33"
+      ],
+      "scorecard_sha256": "a221ee4020cc3639878f42dcc54f6b1cf7d0ea63fe279f7e064df168d64f12a1",
+      "recording_sha256": "626b85cbeeeb497eaa2540a8ed0eae8782964ac7a4c29089258a7806686707e4",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/f4ac9f59-3896-45a1-b32c-6ad32698a22a",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/f4ac9f59-3896-45a1-b32c-6ad32698a22a",
+        "recording": "https://arcprize.org/api/recordings/vc33-5430563c/943f40a7-a844-44a3-b101-36830b38bc50"
+      }
+    },
+    {
+      "task": "WA30",
+      "game_id": "wa30-ee6fef47",
+      "card_id": "ba633dce-fba0-4c3c-a0c3-657bd10ceae6",
+      "score": 100,
+      "levels_completed": 9,
+      "levels_total": 9,
+      "actions": 534,
+      "retry_resets": 0,
+      "terminal_state": "WIN",
+      "published_at": "09/03/2026 13:14:37",
+      "ai_agent": true,
+      "tags": [
+        "ZNAK",
+        "agent",
+        "independent_run",
+        "WA30"
+      ],
+      "scorecard_sha256": "bf0d59acea1d5f92f70b9a5ca3e723fa36c2f344465763d9c0a361ac231a8bac",
+      "recording_sha256": "c1320681e64442196c52dcbf1e79b882fd0ae7a62897fb72447273aeeb566120",
+      "official_urls": {
+        "scorecard": "https://arcprize.org/scorecards/ba633dce-fba0-4c3c-a0c3-657bd10ceae6",
+        "scorecard_api": "https://arcprize.org/api/v3/scorecards/ba633dce-fba0-4c3c-a0c3-657bd10ceae6",
+        "recording": "https://arcprize.org/api/recordings/wa30-ee6fef47/ad87bcfd-d65b-43c9-bb86-5bcecd866708"
+      }
+    }
+  ]
+}

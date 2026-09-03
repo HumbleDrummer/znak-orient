@@ -4,6 +4,8 @@ Status: `PUBLIC_EVIDENCE_INDEX`
 
 This document indexes the completed ZNAK AI-agent run series on the ARC Prize ARC-AGI-3 platform. Every linked scorecard is public and was independently rechecked against the platform's public scorecard API on 2026-09-03.
 
+Machine-readable metadata, the validation receipt, archive digest, and rights boundary are preserved in the dedicated [ARC-AGI-3 result artifact folder](../artifacts/arc-agi-3-results-2026-09-03/).
+
 ## Verified summary
 
 - 25 public scorecards
