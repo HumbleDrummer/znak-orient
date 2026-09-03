@@ -6,7 +6,23 @@ This document indexes the completed ZNAK AI-agent run series on the ARC Prize AR
 
 Machine-readable metadata, the validation receipt, archive digest, and rights boundary are preserved in the dedicated [ARC-AGI-3 result artifact folder](../artifacts/arc-agi-3-results-2026-09-03/).
 
-## Verified summary
+## Aggregate Competition scorecard
+
+The complete series was subsequently published as one aggregate Competition scorecard:
+
+- [public aggregate scorecard `44b65e45-b5ee-4056-ae06-d31d59251bd2`](https://arcprize.org/scorecards/44b65e45-b5ee-4056-ae06-d31d59251bd2)
+- score `100.00%`
+- 25/25 environments
+- 183/183 levels
+- 6,992 actions
+- 0 counted retry resets
+- `ai_agent: true`
+
+Its dedicated machine-readable evidence and verification receipt are in the [aggregate Competition artifact folder](../artifacts/arc-agi-3-aggregate-competition-2026-09-03/).
+
+The aggregate card is a transparent replay from the frozen public winning recordings indexed below; it is not represented as a fresh general-purpose solve.
+
+## Independent scorecard series summary
 
 - 25 public scorecards
 - 25/25 target environments completed; each contains a score-100 run in state `WIN`

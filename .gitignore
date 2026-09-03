@@ -6,4 +6,6 @@ __pycache__/
 artifacts/*.json
 !artifacts/.gitkeep
 !artifacts/browser-qa.json
+artifacts/**/recordings/
+artifacts/**/*.ndjson
 work/

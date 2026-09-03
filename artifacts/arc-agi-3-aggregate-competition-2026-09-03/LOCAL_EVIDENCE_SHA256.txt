@@ -1,0 +1,6 @@
+# Retained local evidence; raw payload files are not mirrored in this repository.
+# SHA-256  bytes  filename
+d0288f58b21310d7f6de17a4111ef5a075552deb71b8b9277e66218e2d134233  25549  recording_verification.json
+bf8d4a43bea5827d5b4d5e4b8d533addc7cc2f7addbb3e0cc91f54712407aca0  27579  scorecard_public_44b65e45-b5ee-4056-ae06-d31d59251bd2.json
+8581f26b6305b40cf377350c777f1376219cb84eeb5ee539cab3a971cfc9fc97  1586  manifest.json
+7169d087dd6ff9f4f11746b5b2186bcaa898b2e193675eb8ecf55d5d45695f3d  1290  RESULT.md

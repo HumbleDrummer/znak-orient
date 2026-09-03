@@ -14,7 +14,7 @@ This folder closes the public evidence record for the ZNAK ARC-AGI-3 Public Demo
 - terminal state `WIN` for every selected run
 - `ai_agent: true` on every scorecard
 
-The run was published as 25 independent one-environment scorecards, not as one aggregate competition-mode scorecard. It is public-set evidence and is not an ARC Prize Verified result, a private-evaluation result, a leaderboard-rank claim, or an ARC Prize endorsement.
+This folder records the original publication as 25 independent one-environment scorecards. The same frozen public winning recordings were subsequently published as [one aggregate Competition scorecard](../arc-agi-3-aggregate-competition-2026-09-03/). Both folders contain public-set evidence and do not claim an ARC Prize Verified result, a private-evaluation result, a leaderboard rank, or an ARC Prize endorsement.
 
 ## Files
 

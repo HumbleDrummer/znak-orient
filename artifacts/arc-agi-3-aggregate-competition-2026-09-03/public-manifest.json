@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "archive_id": "ZNAK-20260903-ARC-AGI-3-AGGREGATE-COMPETITION-v1.0",
+  "evidence_date": "2026-09-03",
+  "status": "PUBLIC_VERIFIED_AGGREGATE_EVIDENCE",
+  "source_url": "https://github.com/HumbleDrummer/znak-orient/tree/main/artifacts/arc-agi-3-aggregate-competition-2026-09-03",
+  "result": {
+    "card_id": "44b65e45-b5ee-4056-ae06-d31d59251bd2",
+    "score": 100,
+    "published_at": "2026-09-03T17:41:16.512632Z",
+    "ai_agent": true,
+    "competition_mode": true,
+    "environments_completed": 25,
+    "environments_total": 25,
+    "terminal_wins": 25,
+    "levels_completed": 183,
+    "levels_total": 183,
+    "actions": 6992,
+    "retry_resets": 0,
+    "tags": [
+      "ZNAK",
+      "agent",
+      "aggregate_replay",
+      "competition"
+    ]
+  },
+  "official_urls": {
+    "scorecard": "https://arcprize.org/scorecards/44b65e45-b5ee-4056-ae06-d31d59251bd2",
+    "scorecard_api": "https://arcprize.org/api/v3/scorecards/44b65e45-b5ee-4056-ae06-d31d59251bd2"
+  },
+  "provenance": {
+    "run_type": "aggregate_replay_of_frozen_2026-09-03_public_recordings",
+    "fresh_independent_solve": false,
+    "blueprint_sha256": "1b369f3c5a2029343ff4bbd60cee387ddcd5059c83808fd3a56719be77cc82dd"
+  },
+  "verification": {
+    "verdict": "PASS",
+    "verified_at": "2026-09-03T18:40:21.074956+00:00",
+    "recordings": 25,
+    "recording_rows": 7017,
+    "recording_bytes": 363551531,
+    "terminal_wins": 25,
+    "levels": 183,
+    "actions": 6992,
+    "retry_resets": 0,
+    "report": {
+      "path": "recording-verification.json",
+      "sha256": "d0288f58b21310d7f6de17a4111ef5a075552deb71b8b9277e66218e2d134233",
+      "bytes": 25549
+    }
+  },
+  "retained_local_evidence": {
+    "raw_payloads_mirrored_to_repository": false,
+    "public_scorecard_capture": {
+      "filename": "scorecard_public_44b65e45-b5ee-4056-ae06-d31d59251bd2.json",
+      "sha256": "bf8d4a43bea5827d5b4d5e4b8d533addc7cc2f7addbb3e0cc91f54712407aca0",
+      "bytes": 27579
+    },
+    "local_manifest": {
+      "filename": "manifest.json",
+      "sha256": "8581f26b6305b40cf377350c777f1376219cb84eeb5ee539cab3a971cfc9fc97",
+      "bytes": 1586
+    },
+    "local_result_summary": {
+      "filename": "RESULT.md",
+      "sha256": "7169d087dd6ff9f4f11746b5b2186bcaa898b2e193675eb8ecf55d5d45695f3d",
+      "bytes": 1290
+    }
+  },
+  "scope_limits": [
+    "public-set evidence only",
+    "not an ARC Prize Verified result",
+    "not a private-evaluation result",
+    "not a leaderboard-rank claim",
+    "not an ARC Prize endorsement",
+    "not represented as a fresh general-purpose solve"
+  ]
+}
