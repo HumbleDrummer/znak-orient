@@ -30,3 +30,8 @@ The code is public here so the method and harness can be inspected and rerun by 
 `LOCAL_PUBLIC_RUN_NOT_VERIFIED`
 
 This project does not claim ARC Prize endorsement, official verification, or a Kaggle competition result.
+
+## Public evidence links
+
+- Kaggle ARC-AGI-1 local public audit notebook: https://www.kaggle.com/code/znakhumbledrummer/znak-arc1-public-audit-97-25
+- ARC Prize Community Leaderboard submission PR: https://github.com/arcprize/ARC-AGI-Community-Leaderboard/pull/57
