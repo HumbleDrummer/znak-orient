@@ -1,0 +1,54 @@
+{
+  "schema": "arc123-current-verified/v1",
+  "created_at": "2026-09-08T05:12:00+00:00",
+  "active_owner": "DELL_ROOT_ONE_PLAYER",
+  "lenovo_parallel_player": "NOT_STARTED_AS_ACKNOWLEDGED_BY_COORDINATION_CHANNEL",
+  "arc1": {
+    "benchmark": "ARC-AGI-1",
+    "route": "LOCAL_RESEARCH",
+    "claim": "local_reference_match",
+    "solved_tasks": 389,
+    "dataset_tasks": 400,
+    "task_accuracy": 0.9725,
+    "errors": 0,
+    "unprocessed": 0,
+    "audit_path": "C:\\Users\\wilgo\\Documents\\Codex\\2026-09-04\\bu\\work\\arc-clean-triad-20260905\\runtime\\ARC1_FINAL_AUDIT.json",
+    "audit_sha256": "0b062eb6e98824907589c0a49c444851b83e2cb0d15e2fee1ca9b9a8f1b2da33",
+    "official_or_kaggle_score": null
+  },
+  "arc2": {
+    "benchmark": "ARC-AGI-2",
+    "route": "LOCAL_RESEARCH_ADAPTIVE",
+    "claim": "local_reference_match",
+    "solved_tasks": 94,
+    "dataset_tasks": 120,
+    "task_accuracy": 0.7833333333333333,
+    "errors": 0,
+    "unprocessed": 0,
+    "audit_path": "C:\\Users\\wilgo\\Documents\\Codex\\2026-09-04\\bu\\work\\arc-clean-triad-20260905\\runtime\\ARC2_ATTEMPT2_AUDIT.json",
+    "audit_sha256": "2b16ac25cd7c402980cc172bc92d754c092667182a629cdf73e4a4b6053c6797",
+    "official_or_kaggle_score": null
+  },
+  "arc3": {
+    "benchmark": "ARC-AGI-3",
+    "requested_route": "PUBLIC_SCORECARD",
+    "requested_process": "fresh_one_player_interactive_competition_mode",
+    "authenticated_account": "suspicious_kalam",
+    "live_inventory_count": 25,
+    "new_fresh_public_run": "NOT_STARTED",
+    "new_scorecard_id": null,
+    "new_score": null,
+    "open_empty_human_scorecard_id": "e8ee9a6c-6013-485a-b5fe-0866887af515",
+    "old_aggregate_replay_card_id": "44b65e45-b5ee-4056-ae06-d31d59251bd2",
+    "old_aggregate_replay_is_current_result": false,
+    "fresh_solver_status": "NO_VIABLE_SOLVER_YET",
+    "candidate_evidence": {
+      "v3_fresh_levels": 0,
+      "v4_fresh_games_with_any_level": 0,
+      "v5_diagnostic_levels": 0
+    },
+    "rules_lock_path": "C:\\Users\\wilgo\\Documents\\Codex\\2026-09-04\\bu\\work\\arc-clean-triad-20260905\\runtime\\ARC3_PUBLIC_PREPARE_RULES_LOCK_20260908.json",
+    "rules_verdict": "CONFLICT",
+    "public_mutation": "BLOCKED"
+  }
+}
