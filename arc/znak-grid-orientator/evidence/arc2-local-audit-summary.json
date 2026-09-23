@@ -1,0 +1,27 @@
+{
+  "schema": "arc-public-evidence-summary/v1",
+  "evidence_status": "LOCAL_TEST",
+  "benchmark": "ARC-AGI-2",
+  "benchmark_version": "f3283f727488ad98fe575ea6a5ac981e4a188e49",
+  "split": "evaluation",
+  "route": "LOCAL_RESEARCH_ADAPTIVE",
+  "metric": "local_reference_match",
+  "audit_verdict": "PARTIAL",
+  "matched_tasks": 94,
+  "dataset_tasks": 120,
+  "task_match_rate": 0.7833333333333333,
+  "attempt_count": 2,
+  "adaptive": true,
+  "unsolved_tasks": 26,
+  "unprocessed_tasks": 0,
+  "errors": 0,
+  "dataset_manifest_sha256": "d271470a4308930f00b1d4be825d51ff88384680a2c05fac8ca9779ad667d9e7",
+  "source": {
+    "file_name": "ARC2_ATTEMPT2_AUDIT.json",
+    "bytes": 56058,
+    "sha256": "2b16ac25cd7c402980cc172bc92d754c092667182a629cdf73e4a4b6053c6797",
+    "full_source_included": false,
+    "exclusion_reason": "The full local audit contains machine-specific filesystem paths."
+  },
+  "boundary": "Adaptive local reference comparison only; no public platform result is inferred."
+}
