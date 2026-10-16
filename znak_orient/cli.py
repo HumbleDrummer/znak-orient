@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from .engine import OrientationError, orient
+from .memoria import MemoriaCache
 from .strict_json import StrictJsonError, strict_json_loads
 
 
@@ -61,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "verify-demo":
             package = strict_json_loads(args.input.read_text(encoding="utf-8"))
-            result = orient(package)
+            result = orient(package, memoria_cache=MemoriaCache())
             _atomic_write_json(args.output, result)
             receipt = result["run_receipt"]
             print(f"ORIENTATION_{receipt['status']} checkpoint={result['checkpoint']['checkpoint_id']} output={args.output}")
