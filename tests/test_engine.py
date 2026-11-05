@@ -3,11 +3,13 @@ from __future__ import annotations
 import copy
 import json
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from znak_orient.canonical import canonical_json_bytes, seal_checkpoint, sha256_hex, verify_checkpoint_integrity
 from znak_orient.contracts import validate_source
 from znak_orient.engine import OrientationError, evaluate_success_condition, orient
+from znak_orient.memoria import MemoriaCache
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +62,68 @@ class DemoOrientationTests(unittest.TestCase):
         self.package = demo_package()
         self.result = orient(self.package)
         self.intake = intake_by_id(self.result)
+
+    def test_memoria_cache_is_scoped_to_fail_receipt_sources(self):
+        cache = MemoriaCache()
+        result = orient(self.package, memoria_cache=cache)
+        self.assertEqual(result["checkpoint"]["checkpoint_id"], self.result["checkpoint"]["checkpoint_id"])
+        failed_sources = {
+            source_id
+            for receipt in self.package["validation_receipts"]
+            if receipt["status"] == "FAIL"
+            for source_id in receipt["source_ids"]
+        }
+        as_of = datetime.fromisoformat(self.package["as_of"].replace("Z", "+00:00"))
+        retained = 0
+        for source in self.package["sources"]:
+            normalized_source = validate_source(source)
+            state, _ = cache.get(source["source_id"], normalized_source["content_sha256"], now=as_of)
+            if source["source_id"] not in failed_sources and state == "HIT":
+                retained += 1
+        self.assertGreater(retained, 0)
+
+    def test_memoria_metrics_are_derived_and_non_authoritative(self):
+        cache = MemoriaCache()
+        result = orient(self.package, memoria_cache=cache)
+        metrics = result["recovery_card"]["memoria_metrics"]
+        self.assertEqual(set(metrics), {"corrupt", "hit", "miss", "purge", "stale"})
+        self.assertTrue(all(isinstance(value, int) and value >= 0 for value in metrics.values()))
+        metrics["purge"] = 999
+        fresh = orient(self.package, memoria_cache=MemoriaCache())
+        self.assertNotEqual(fresh["recovery_card"]["memoria_metrics"]["purge"], 999)
+
+    def test_orient_caches_generated_checkpoint(self):
+        cache = MemoriaCache()
+        result = orient(self.package, memoria_cache=cache)
+        checkpoint_time = datetime.fromisoformat(result["checkpoint"]["created_at"].replace("Z", "+00:00"))
+        status, cached = cache.get_checkpoint(result["checkpoint"], now=checkpoint_time)
+        self.assertEqual(status, "HIT")
+        self.assertEqual(cached["checkpoint_id"], result["checkpoint"]["checkpoint_id"])
+
+    def test_memoria_recovery_card_is_deterministic_for_identical_runs(self):
+        first = orient(self.package, memoria_cache=MemoriaCache())
+        second = orient(copy.deepcopy(self.package), memoria_cache=MemoriaCache())
+        self.assertEqual(first["recovery_card"], second["recovery_card"])
+
+    def test_open_conflicts_mark_related_cache_entries_disputed(self):
+        cache = MemoriaCache()
+        result = orient(self.package, memoria_cache=cache)
+        conflict_sources = {
+            source_id
+            for conflict in result["checkpoint"]["conflicts"]
+            if conflict["status"] == "DISPUTED"
+            for claim in conflict["claims"]
+            for source_id in claim["source_ids"]
+        }
+        self.assertTrue(conflict_sources)
+        self.assertGreaterEqual(
+            sum(
+                cache.get(source["source_id"], validate_source(source)["content_sha256"], now=datetime.fromisoformat(self.package["as_of"].replace("Z", "+00:00")))[0] == "DISPUTED"
+                for source in self.package["sources"]
+                if source["source_id"] in conflict_sources
+            ),
+            1,
+        )
 
     def test_required_synthetic_demo_orientation(self):
         self.assertEqual("RECEIPT_NOT_PASS", self.intake["chg-unsupported-success"]["reason"])

@@ -6,6 +6,7 @@ import copy
 from typing import Any, Iterable
 
 from .canonical import canonical_json_bytes, seal_checkpoint, sha256_hex, verify_checkpoint_integrity
+from .memoria import MemoriaCache
 from .contracts import (
     AUTHORITIES,
     CONTENT_TYPES,
@@ -2257,12 +2258,15 @@ def _validation_receipt_pointer(receipt: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _derive_recovery_card(checkpoint: dict[str, Any]) -> dict[str, Any]:
+def _derive_recovery_card(
+    checkpoint: dict[str, Any],
+    memoria_metrics: dict[str, int] | None = None,
+) -> dict[str, Any]:
     goal_lamps = [lamp for lamp in checkpoint["active_lamps"] if lamp["type"] == "GOAL"]
     decisions = [lamp for lamp in checkpoint["active_lamps"] if lamp["type"] == "DECISION"]
     constraints = [lamp for lamp in checkpoint["active_lamps"] if lamp["type"] == "CONSTRAINT"]
     risks = [lamp for lamp in checkpoint["active_lamps"] if lamp["type"] == "RISK"]
-    return copy.deepcopy({
+    card = {
         "card_id": f"rc:{checkpoint['checkpoint_id']}",
         "derived_from_checkpoint_id": checkpoint["checkpoint_id"],
         "derived_from_integrity": checkpoint["integrity"]["value"],
@@ -2278,10 +2282,20 @@ def _derive_recovery_card(checkpoint: dict[str, Any]) -> dict[str, Any]:
         "voltage": checkpoint["voltage"],
         "primary_next_step": copy.deepcopy(checkpoint["primary_next_step"]),
         "source_pointers": copy.deepcopy(checkpoint["source_pointers"]),
-    })
+    }
+    if memoria_metrics is not None:
+        card["memoria_metrics"] = {
+            key: int(memoria_metrics[key])
+            for key in ("corrupt", "hit", "miss", "purge", "stale")
+        }
+    return copy.deepcopy(card)
 
 
-def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
+def orient(
+    raw_package: dict[str, Any],
+    *,
+    memoria_cache: MemoriaCache | None = None,
+) -> dict[str, Any]:
     """Return a deterministic checkpoint, Recovery Card, and scoped run receipt."""
 
     try:
@@ -2313,6 +2327,18 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
         receipt_list = [validate_receipt(item) for item in require_list(package.get("validation_receipts", []), "PKG-007", "package.validation_receipts")]
         receipts = {item["receipt_id"]: item for item in receipt_list}
         require(len(receipts) == len(receipt_list), "PKG-008", "receipt_ids must be unique")
+        if memoria_cache is not None:
+            for source in source_list:
+                memoria_cache.put(
+                    source["source_id"],
+                    source["content_sha256"],
+                    source,
+                    source_ids=[source["source_id"]],
+                    now=as_of_instant,
+                )
+            for receipt in receipt_list:
+                if receipt["status"] == "FAIL":
+                    memoria_cache.purge_for_receipt(receipt)
         for receipt in receipt_list:
             require(all(source_id in sources for source_id in receipt["source_ids"]), "PKG-009", f"receipt {receipt['receipt_id']} has an unknown source")
             checked_at = parse_instant(receipt["checked_at"], "PKG-013", f"receipt {receipt['receipt_id']} checked_at")
@@ -2418,6 +2444,15 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     )
         dispositions: list[dict[str, Any]] = []
         meaningful: list[dict[str, Any]] = []
+
+        def record_meaningful(change: dict[str, Any], disposition: dict[str, Any]) -> None:
+            meaningful.append(disposition)
+            if memoria_cache is not None:
+                memoria_cache.purge_for_state_change(
+                    _evidence_source_ids(change, receipts),
+                    material=bool(change.get("material")),
+                )
+
         seen_semantics: set[str] = set()
         normalized_changes = [normalize_change(item) for item in require_list(package.get("changes"), "PKG-011", "package.changes")]
         id_payloads: dict[str, set[str]] = {}
@@ -2532,7 +2567,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     resolved_lamp,
                 )
                 dispositions.append(disposition)
-                meaningful.append(disposition)
+                record_meaningful(change, disposition)
                 continue
 
             existing_conflict = conflicts.get(conflict_id)
@@ -2572,7 +2607,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     existing_conflict,
                 )
                 dispositions.append(disposition)
-                meaningful.append(disposition)
+                record_meaningful(change, disposition)
                 continue
 
             existing = state.get(key)
@@ -2636,7 +2671,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     updated_lamp,
                 )
                 dispositions.append(disposition)
-                meaningful.append(disposition)
+                record_meaningful(change, disposition)
                 continue
             if change["operation"] in {"INVALIDATE", "DEACTIVATE"}:
                 if existing is None:
@@ -2662,7 +2697,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     None,
                 )
                 dispositions.append(disposition)
-                meaningful.append(disposition)
+                record_meaningful(change, disposition)
                 continue
             same_value = (
                 existing is not None
@@ -2686,7 +2721,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     opened_conflict,
                 )
                 dispositions.append(disposition)
-                meaningful.append(disposition)
+                record_meaningful(change, disposition)
                 continue
             if existing is not None and same_value:
                 merged = copy.deepcopy(existing)
@@ -2720,7 +2755,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                     merged,
                 )
                 dispositions.append(disposition)
-                meaningful.append(disposition)
+                record_meaningful(change, disposition)
                 continue
             created_lamp = _lamp_from_change(change, receipts)
             state[key] = created_lamp
@@ -2733,7 +2768,7 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
                 created_lamp,
             )
             dispositions.append(disposition)
-            meaningful.append(disposition)
+            record_meaningful(change, disposition)
 
         active_lamps = list(state.values())
         retained_recent_changes = migrated_recent_changes + meaningful
@@ -2749,6 +2784,14 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
         )
         open_conflicts = sorted((item for item in conflicts.values() if item["status"] == "DISPUTED"), key=lambda item: item["conflict_id"])
         retained_conflicts = sorted(conflicts.values(), key=lambda item: item["conflict_id"])
+        if memoria_cache is not None:
+            for conflict in open_conflicts:
+                conflict_source_ids = {
+                    source_id
+                    for claim in conflict.get("claims", [])
+                    for source_id in claim.get("source_ids", [])
+                }
+                memoria_cache.mark_conflict_opened(conflict_source_ids)
         new_effective_receipts = [
             receipt
             for receipt in effective_receipts
@@ -2834,7 +2877,20 @@ def orient(raw_package: dict[str, Any]) -> dict[str, Any]:
             checkpoint = seal_checkpoint(checkpoint_payload)
         else:
             checkpoint = copy.deepcopy(base)
-        recovery_card = _derive_recovery_card(checkpoint)
+        if memoria_cache is not None:
+            memoria_cache.put_checkpoint(
+                checkpoint,
+                source_ids=[
+                    pointer["source_id"]
+                    for pointer in checkpoint.get("source_pointers", [])
+                    if isinstance(pointer, dict) and isinstance(pointer.get("source_id"), str)
+                ],
+                now=parse_instant(as_of, "CP-TIME", "checkpoint.created_at"),
+            )
+        recovery_card = _derive_recovery_card(
+            checkpoint,
+            memoria_cache.metrics if memoria_cache is not None else None,
+        )
         executed_untrusted = any(item["reason"] == "IMPORTED_TEXT_IS_DATA_NOT_INSTRUCTION" and item["status"] != "IGNORED" for item in dispositions)
         checkpoint_valid, checkpoint_reason = _checkpoint_is_semantically_valid(checkpoint, as_of, sources, receipts)
         if not checkpoint_valid:

@@ -67,3 +67,11 @@ For legacy schema-`0.3C` checkpoints whose retained meaningful changes have the 
 Retained changes are ordered and, for each repeated `(content_type, subject)` key, must form a continuous snapshot chain: each prior `after` must equal the next `before`. The only exception is receipt-driven FACT suspension described above. If the prior FACT `after` is preserved as that exact suspended claim, a subsequent change for the same FACT may have `before: null`, reflecting that the FACT is no longer active. No other missing link, reordered transition, or implicit reset is accepted.
 
 History compaction is evidenced as semantic equivalence, not byte identity. In the covered fixture, the compact path and full-history path converge on the same position-driving checkpoint fields and the same final meaningful transition after the compact tail explicitly rebases `expected_checkpoint_id` to the checkpoint produced by its prefix. Checkpoint IDs, seals, creation times, and retained-history prefixes may legitimately differ. Omitting that CAS rebase is stale-state input and must not be treated as equivalent replay.
+
+## MEMORIA cache lifecycle
+
+The optional MEMORIA layer provides deterministic cache recovery around the evidence package. Its closed states are `HIT`, `MISS`, `STALE`, `CORRUPT`, and `PURGE`. Cache keys bind the source identity to its canonical `content_sha256`, and cached values retain a canonical digest so tampering is reported as `CORRUPT` rather than silently reused.
+
+An expired entry is `STALE` and is never returned. A material `FAIL` validation receipt purges only entries whose recorded `source_ids` overlap the receipt; PASS and UNKNOWN receipts do not purge entries. The cache exposes deterministic `hit`, `miss`, `stale`, `corrupt`, and `purge` counters. When enabled by the local CLI or HTTP server, those counters are copied into the derived Recovery Card as `memoria_metrics`; they are observational and never canonical project state. See [MEMORIA.md](MEMORIA.md) for the lifecycle reference.
+
+An opened conflict marks related source-backed entries `DISPUTED`; this is a separate disposition from the closed five-state counter vocabulary, and disputed values are not returned until recomputed or purged. The trigger is source-scoped: unrelated cache entries remain eligible for normal HIT/STALE/CORRUPT handling.

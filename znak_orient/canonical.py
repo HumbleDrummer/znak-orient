@@ -59,6 +59,14 @@ def checkpoint_integrity_value(checkpoint: dict[str, Any]) -> str:
     return sha256_hex(payload)
 
 
+def checkpoint_content_sha256(checkpoint: dict[str, Any]) -> str:
+    """Return the canonical digest used as the MEMORIA checkpoint content key."""
+
+    if not isinstance(checkpoint, dict):
+        raise TypeError("checkpoint must be a dictionary")
+    return checkpoint_integrity_value(checkpoint)
+
+
 def seal_checkpoint(checkpoint: dict[str, Any]) -> dict[str, Any]:
     sealed = copy.deepcopy(checkpoint)
     sealed["integrity"] = {
